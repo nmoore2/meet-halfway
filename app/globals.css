@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #121212;
+  --surface: #1e1e1e;
+  --primary: #bb86fc;
+  --secondary: #03dac6;
+  --error: #cf6679;
+}
+
+body {
+  background-color: var(--background);
+  color: white;
+  min-height: 100vh;
+}
