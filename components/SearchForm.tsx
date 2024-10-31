@@ -16,7 +16,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     const [formData, setFormData] = useState({
         locationA: 'Sloan\'s Lake, Denver, CO',
         locationB: 'Cherry Creek, Denver, CO',
-        activityType: 'any',
+        activityType: 'Coffee Shop',
         locationType: 'any',
         meetupType: 'any'
     });
@@ -45,6 +45,17 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
         appearance-none cursor-pointer
         transition-all duration-200
     `;
+
+    const activityTypes = [
+        'Coffee Shop',
+        'Restaurant',
+        'Cocktail Bar',
+        'Park',
+        'Library',
+        'Museum',
+        'Bookstore',
+        'Cafe'
+    ];
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -79,13 +90,11 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                             className={selectClass}
                             disabled={isLoading}
                         >
-                            <option value="any">Any Activity</option>
-                            <option value="bar">Dive Bar</option>
-                            <option value="cocktail">Cocktail Bar</option>
-                            <option value="coffee">Coffee Shop</option>
-                            <option value="dinner">Restaurant</option>
-                            <option value="park">Park</option>
-                            <option value="movie">Movie Theater</option>
+                            <option value="Coffee Shop">Coffee Shop</option>
+                            <option value="Restaurant">Restaurant</option>
+                            <option value="Park">Park</option>
+                            <option value="Library">Library</option>
+                            <option value="Museum">Museum</option>
                         </select>
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -30,6 +30,8 @@ export default function Home() {
                 locationB: searchData.locationB
             });
 
+            console.log('Sending search request:', searchData);
+
             const response = await fetch('/api/search', {
                 method: 'POST',
                 headers: {
@@ -39,9 +41,18 @@ export default function Home() {
             });
 
             const data = await response.json();
+            console.log('Received response:', data);
 
             if (!response.ok) {
-                throw new Error(data.error || 'Something went wrong');
+                throw new Error(data.error || `API error: ${response.status}`);
+            }
+
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to get recommendations');
+            }
+
+            if (!data.suggestions || !Array.isArray(data.suggestions)) {
+                throw new Error('Invalid response format');
             }
 
             setSearchResult(data);

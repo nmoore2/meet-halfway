@@ -39,6 +39,12 @@ export default function Recommendations({ suggestions = [], locationA, locationB
         return `https://maps.googleapis.com/maps/api/staticmap?size=200x200&zoom=12&${markers}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
     };
 
+    const formatReasoning = (reasoning: string) => {
+        // Split the text into sentences
+        const sentences = reasoning.split(/[.!?]+/).filter(s => s.trim().length > 0);
+        return sentences.map(s => s.trim());
+    };
+
     if (isLoading) {
         return (
             <div className="mt-8">
@@ -74,7 +80,14 @@ export default function Recommendations({ suggestions = [], locationA, locationB
                         <div className="flex-grow">
                             <h3 className="text-xl font-bold text-white">{suggestion.name}</h3>
                             <p className="text-gray-400 mt-1">{suggestion.address}</p>
-                            <p className="text-gray-300 mt-3 italic">{suggestion.reasoning}</p>
+                            <div className="mt-3 text-gray-300">
+                                {formatReasoning(suggestion.reasoning).map((point, i) => (
+                                    <div key={i} className="flex items-start mb-1">
+                                        <span className="mr-2">{point.startsWith('•') ? '' : '•'}</span>
+                                        <span>{point.trim().replace(/^•\s*/, '')}</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                         <div className="flex-shrink-0">
                             <div className="w-[200px] h-[200px] rounded-lg overflow-hidden">
