@@ -1,43 +1,66 @@
 import { NextResponse } from 'next/server';
 import { getRecommendedVenues } from '../../../lib/openai';
 import { getPlaceDetails } from '../../../lib/google-places';
+import { getDriveTimes } from '../../../lib/maps';
 
 export async function POST(request: Request) {
+    const startTime = performance.now();
+
     try {
         const searchData = await request.json();
-        const { activityType, meetupType, priceRange } = searchData;
+        const { activityType, meetupType, priceRange, locationA, locationB } = searchData;
 
-        // Get recommendations
+        console.log('Starting venue recommendations...');
         const chatResponse = await getRecommendedVenues(activityType, meetupType, priceRange);
+        console.log(`OpenAI response time: ${performance.now() - startTime}ms`);
 
-        // Ensure we have an array of venues
         const venues = Array.isArray(chatResponse) ? chatResponse : parseVenueRecommendations(chatResponse);
 
-        if (!venues || !Array.isArray(venues) || venues.length === 0) {
+        if (!venues || venues.length === 0) {
             throw new Error('No valid venues found');
         }
 
-        // Process each venue
-        const enrichedVenues = await Promise.all(
-            venues.map(async (venue) => {
-                try {
-                    const placeDetails = await getPlaceDetails(venue.name, venue.address);
-                    return {
-                        ...venue,
-                        photos: placeDetails.photos || [],
-                        location: placeDetails.geometry?.location || null,
-                        price: placeDetails.price_level ? '$'.repeat(placeDetails.price_level) : '$'
-                    };
-                } catch (error) {
-                    console.error(`Error enriching venue ${venue.name}:`, error);
-                    return venue;
-                }
-            })
-        );
+        // Process all venues in parallel
+        console.log('Starting place details and drive times fetch...');
+        const placesStartTime = performance.now();
+
+        // Get place details and drive times in parallel
+        const [enrichedVenues, drivesFromA, drivesFromB] = await Promise.all([
+            Promise.all(
+                venues.map(async (venue) => {
+                    try {
+                        const placeDetails = await getPlaceDetails(venue.name, venue.address);
+                        return {
+                            ...venue,
+                            photos: placeDetails.photos || [],
+                            location: placeDetails.geometry?.location || null,
+                            price_level: placeDetails.price_level
+                        };
+                    } catch (error) {
+                        console.error(`Error enriching venue ${venue.name}:`, error);
+                        return venue;
+                    }
+                })
+            ),
+            getDriveTimes(locationA, venues.map(v => v.address)),
+            getDriveTimes(locationB, venues.map(v => v.address))
+        ]);
+
+        // Combine all the data
+        const finalVenues = enrichedVenues.map((venue, index) => ({
+            ...venue,
+            driveTimes: {
+                fromA: drivesFromA[index],
+                fromB: drivesFromB[index]
+            }
+        }));
+
+        console.log(`Place details and drive times fetch time: ${performance.now() - placesStartTime}ms`);
+        console.log(`Total request time: ${performance.now() - startTime}ms`);
 
         return NextResponse.json({
             success: true,
-            suggestions: enrichedVenues
+            suggestions: finalVenues
         });
 
     } catch (error: any) {
@@ -49,46 +72,24 @@ export async function POST(request: Request) {
     }
 }
 
-function parseVenueRecommendations(response: string): Array<any> {
+function parseVenueRecommendations(text: string) {
     try {
-        // Split the response into venue blocks
         const venues = [];
-        let currentVenue: any = {};
+        const venueRegex = /(\d+)\.\s*•\s*Name:\s*([^•]+)•\s*Address:\s*([^•]+)•\s*Best for:\s*([^•]+)•\s*Why:\s*([^•\n]+)/g;
 
-        const lines = response.split('\n');
-        for (const line of lines) {
-            const trimmedLine = line.trim();
-
-            // Start of new venue
-            if (trimmedLine.match(/^\d+\.$/)) {
-                if (Object.keys(currentVenue).length > 0) {
-                    venues.push(currentVenue);
-                }
-                currentVenue = {};
-                continue;
-            }
-
-            // Parse venue details
-            if (trimmedLine.startsWith('• Name:')) {
-                currentVenue.name = trimmedLine.replace('• Name:', '').trim();
-            } else if (trimmedLine.startsWith('• Address:')) {
-                currentVenue.address = trimmedLine.replace('• Address:', '').trim();
-            } else if (trimmedLine.startsWith('• Best for:')) {
-                currentVenue.bestFor = trimmedLine.replace('• Best for:', '').trim();
-            } else if (trimmedLine.startsWith('• Why:')) {
-                currentVenue.why = trimmedLine.replace('• Why:', '').trim();
-            }
+        let match;
+        while ((match = venueRegex.exec(text)) !== null) {
+            venues.push({
+                name: match[2].trim(),
+                address: match[3].trim(),
+                bestFor: match[4].trim(),
+                why: match[5].trim()
+            });
         }
 
-        // Add the last venue
-        if (Object.keys(currentVenue).length > 0) {
-            venues.push(currentVenue);
-        }
-
-        console.log('Parsed venues:', venues);
         return venues;
     } catch (error) {
-        console.error('Error parsing venues:', error);
+        console.error('Error parsing venue recommendations:', error);
         return [];
     }
 }

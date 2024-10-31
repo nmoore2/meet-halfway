@@ -69,3 +69,30 @@ export async function getPlacesNearby(
 
 // Export types for use in other files
 export type { Location };
+
+// Add this new function to your maps.ts file
+export async function getDriveTimes(origin: string, destinations: string[]): Promise<string[]> {
+    try {
+        const url = new URL('https://maps.googleapis.com/maps/api/distancematrix/json');
+        url.searchParams.append('origins', origin);
+        url.searchParams.append('destinations', destinations.join('|'));
+        url.searchParams.append('mode', 'driving');
+        url.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
+
+        const response = await fetch(url.toString());
+        const data = await response.json();
+
+        if (data.status !== 'OK') {
+            console.error('Distance Matrix API error:', data.status);
+            return destinations.map(() => 'Unknown');
+        }
+
+        return data.rows[0].elements.map((element: any) => {
+            if (element.status !== 'OK') return 'Unknown';
+            return `${Math.round(element.duration.value / 60)} mins`;
+        });
+    } catch (error) {
+        console.error('Error fetching drive times:', error);
+        return destinations.map(() => 'Unknown');
+    }
+}
