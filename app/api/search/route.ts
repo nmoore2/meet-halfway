@@ -1,176 +1,188 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { getChatGPTResponse } from '../../../lib/openai';
+import { getCoordinates } from '../../../lib/geocoding';
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
-
-// Helper function to get coordinates from an address
-async function getCoordinates(address: string) {
-    const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${process.env.GOOGLE_MAPS_API_KEY}`
-    );
-    const data = await response.json();
-
-    if (!data.results?.[0]?.geometry?.location) {
-        throw new Error(`Could not find coordinates for address: ${address}`);
-    }
-
-    return data.results[0].geometry.location;
-}
-
-const getPromptForActivityType = (placeName: string, activityType: string, meetupType: string) => {
-    return `You are a local Denver expert. For ${placeName}, a ${activityType.toLowerCase()}, 
-    provide exactly 3 brief bullet points about why it would be perfect for a ${meetupType.toLowerCase()}.
-    Each bullet point should be specific and under 15 words.
-    
-    Format as JSON:
-    {
-        "bullets": [
-            "Intimate atmosphere with soft lighting and cozy leather booths",
-            "Award-winning wine list with expert sommelier recommendations",
-            "Quiet enough for conversation with gentle background music"
-        ]
-    }`;
-};
-
-async function getChatGPTResponse(prompt: string) {
+export async function POST(request: Request) {
     try {
-        const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.7,
-            max_tokens: 200
+        const searchData = await request.json();
+
+        if (!searchData.locationA || !searchData.locationB) {
+            return NextResponse.json({
+                success: false,
+                message: 'Missing location information'
+            }, { status: 400 });
+        }
+
+        const suggestions = await findPlacesWithGoogle(searchData);
+
+        if (!suggestions || suggestions.length === 0) {
+            return NextResponse.json({
+                success: false,
+                message: 'No suggestions found'
+            }, { status: 404 });
+        }
+
+        return NextResponse.json({
+            success: true,
+            suggestions,
+            message: 'Recommendations found'
+        });
+    } catch (error: any) {
+        console.error('Search error:', {
+            message: error.message,
+            stack: error.stack
         });
 
-        const content = completion.choices[0].message.content;
-        console.log('Raw ChatGPT response:', content);
-        return JSON.parse(content || '{"bullets": []}');
-    } catch (error) {
-        console.error('ChatGPT error:', error);
-        return { bullets: [] };
+        return NextResponse.json({
+            success: false,
+            message: error.message || 'Failed to get recommendations',
+            error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        }, { status: 500 });
     }
 }
 
 async function findPlacesWithGoogle(searchData: any) {
     const { locationA, locationB, activityType, priceRange, meetupType } = searchData;
-    console.log('Finding places with params:', { locationA, locationB, activityType, priceRange });
 
     try {
         // Get coordinates for both locations
-        console.log('Getting coordinates for locations...');
         const [locA, locB] = await Promise.all([
-            getCoordinates(locationA).then(coords => {
-                console.log('Location A coords:', coords);
-                return coords;
-            }),
-            getCoordinates(locationB).then(coords => {
-                console.log('Location B coords:', coords);
-                return coords;
-            })
-        ]);
+            getCoordinates(locationA),
+            getCoordinates(locationB)
+        ]).catch(error => {
+            throw new Error(`Failed to get coordinates: ${error.message}`);
+        });
+
+        if (!locA || !locB) {
+            throw new Error('Could not find coordinates for one or both locations');
+        }
 
         // Calculate midpoint
         const midpoint = {
             lat: (locA.lat + locB.lat) / 2,
             lng: (locA.lng + locB.lng) / 2
         };
-        console.log('Calculated midpoint:', midpoint);
 
-        // Use the correct place type for cafes
-        const placeType = activityType === 'Coffee Shop' ? 'cafe' :
-            activityType.toLowerCase().replace(' ', '_');
-
-        console.log('Using place type:', placeType);
-
-        // Build the Places API URL
+        // Initial places search
         const placesUrl = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
         placesUrl.searchParams.append('location', `${midpoint.lat},${midpoint.lng}`);
-        placesUrl.searchParams.append('radius', '5000'); // 5km radius
-        placesUrl.searchParams.append('type', placeType);
-        placesUrl.searchParams.append('keyword', activityType); // Add keyword for better matching
-        if (priceRange !== 'any') {
-            const priceLevel = priceRange === '$' ? '1' :
-                priceRange === '$$' ? '2' :
-                    priceRange === '$$$' ? '3' : '4';
-            placesUrl.searchParams.append('minprice', priceLevel);
-            placesUrl.searchParams.append('maxprice', priceLevel);
-        }
+        placesUrl.searchParams.append('radius', '5000');
+        placesUrl.searchParams.append('type', activityType.toLowerCase() === 'coffee shop' ? 'cafe' : 'restaurant');
+        placesUrl.searchParams.append('keyword', activityType);
         placesUrl.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
 
-        console.log('Places API URL (without key):', placesUrl.toString().replace(process.env.GOOGLE_MAPS_API_KEY!, 'REDACTED'));
-
         const placesResponse = await fetch(placesUrl);
-        const places = await placesResponse.json();
-
-        console.log('Places API response status:', placesResponse.status);
-        console.log('Places API response:', places);
-
-        const processPlaces = async (places: any[]) => {
-            const results = [];
-
-            for (const place of places.slice(0, 3)) {
-                console.log('Getting AI description for:', place.name);
-
-                const chatResponse = await getChatGPTResponse(
-                    getPromptForActivityType(place.name, searchData.activityType, searchData.meetupType)
-                );
-
-                results.push({
-                    name: place.name,
-                    address: place.vicinity,
-                    price: ''.padStart(place.price_level || 1, '$'),
-                    bullets: chatResponse.bullets
-                });
-            }
-
-            return results;
-        };
-
-        if (!places.results || places.results.length === 0) {
-            console.log('No places found - expanding search radius...');
-
-            // Try again with a larger radius
-            placesUrl.searchParams.set('radius', '10000'); // 10km radius
-            const retryResponse = await fetch(placesUrl);
-            const retryPlaces = await retryResponse.json();
-
-            if (!retryPlaces.results || retryPlaces.results.length === 0) {
-                throw new Error('No places found in the selected area');
-            }
-            return processPlaces(retryPlaces.results);
+        if (!placesResponse.ok) {
+            throw new Error(`Places API error: ${placesResponse.statusText}`);
         }
 
-        return processPlaces(places.results);
+        const placesData = await placesResponse.json();
 
-    } catch (error) {
-        console.error('Google Places API error:', error);
+        if (!placesData.results || placesData.results.length === 0) {
+            throw new Error('No places found in the area');
+        }
+
+        // Get detailed information for each place including photos
+        const detailedPlaces = await Promise.all(
+            placesData.results.slice(0, 3).map(async (place: any) => {
+                const detailsUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json');
+                detailsUrl.searchParams.append('place_id', place.place_id);
+                detailsUrl.searchParams.append('fields', 'name,vicinity,price_level,photos');
+                detailsUrl.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
+
+                const detailsResponse = await fetch(detailsUrl);
+                if (!detailsResponse.ok) {
+                    throw new Error(`Failed to get details for ${place.name}`);
+                }
+
+                const details = await detailsResponse.json();
+
+                // Directly create photo URLs without metadata check
+                const photoUrls = details.result.photos
+                    ? details.result.photos
+                        .slice(0, 6)
+                        .map((photo: any) =>
+                            `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+                        )
+                    : [];
+
+                console.log(`Photos for ${place.name}:`, photoUrls); // Debug log
+
+                return {
+                    ...place,
+                    photos: photoUrls
+                };
+            })
+        ).then(places => places.filter(Boolean));
+
+        if (detailedPlaces.length === 0) {
+            throw new Error('Failed to get detailed information for any places');
+        }
+
+        // Process places with chat responses
+        const results = await Promise.all(
+            detailedPlaces.map(async (place: any) => {
+                try {
+                    const chatResponse = await getChatGPTResponse(
+                        getPromptForActivityType(place.name, activityType, meetupType)
+                    );
+
+                    // Extract rating from the first line
+                    const rating = parseInt(chatResponse.bullets[0].match(/Rating: (\d+)/)?.[1] || '0');
+
+                    // Remove the rating line from bullets
+                    const bullets = chatResponse.bullets.filter(bullet => !bullet.startsWith('Rating:'));
+
+                    return {
+                        name: place.name,
+                        address: place.vicinity,
+                        price: ''.padStart(place.price_level || 1, '$'),
+                        rating: rating,
+                        bullets: bullets,
+                        photos: place.photos
+                    };
+                } catch (chatError) {
+                    console.error(`Chat error for ${place.name}:`, chatError);
+                    return null;
+                }
+            })
+        ).then(results =>
+            results
+                .filter(Boolean)
+                // Sort by rating in descending order
+                .sort((a, b) => (b?.rating || 0) - (a?.rating || 0))
+        );
+
+        if (results.length === 0) {
+            throw new Error('No results could be processed completely');
+        }
+
+        return results;
+
+    } catch (error: any) {
+        console.error('Places API error:', {
+            message: error.message,
+            stack: error.stack
+        });
         throw error;
     }
 }
 
-export async function POST(req: Request) {
-    try {
-        const searchData = await req.json();
-        console.log('Search data received:', searchData);
-
-        const places = await findPlacesWithGoogle(searchData);
-        const resolvedPlaces = await Promise.all(places);
-
-        const response = {
-            success: true,
-            suggestions: resolvedPlaces,
-            message: 'Recommendations found'
-        };
-
-        console.log('Sending response:', response);
-        return NextResponse.json(response);
-
-    } catch (error: any) {
-        console.error('API route error:', error);
-        return NextResponse.json({
-            success: false,
-            error: error.message || 'Failed to process search'
-        }, { status: 500 });
-    }
+function getPromptForActivityType(placeName: string, activityType: string, meetupType: string) {
+    return `As a local Denver expert, evaluate ${placeName} as a ${activityType} spot for a ${meetupType}. 
+    First, rate this venue from 1-10 for this specific type of meetup, where 10 is perfect.
+    Then provide exactly 3 bullet points about the venue.
+    
+    Focus your evaluation and bullet points on:
+    • Atmosphere and ambiance
+    • Unique features or specialties
+    • Why it's specifically good (or not) for ${meetupType}
+    
+    Format your response exactly like this:
+    Rating: [1-10]
+    • [First bullet point]
+    • [Second bullet point]
+    • [Third bullet point]
+    
+    Keep each bullet under 80 characters.`;
 }

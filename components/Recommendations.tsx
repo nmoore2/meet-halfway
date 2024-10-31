@@ -24,6 +24,7 @@ interface Suggestion {
     firstDateAppeal?: string;
     conversationStarters?: string;
     bullets: string[];
+    photos?: string[];
 }
 
 interface RecommendationsProps {
@@ -35,6 +36,66 @@ interface RecommendationsProps {
     locationB: string;
     isLoading: boolean;
 }
+
+// Add this near the top of the file, before the PhotoCarousel component
+const getProxyPhotoUrl = (originalUrl: string) => {
+    return `/api/place-photo?url=${encodeURIComponent(originalUrl)}`;
+};
+
+// First, create a PhotoCarousel component
+const PhotoCarousel = ({ photos }: { photos: string[] }) => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+
+    console.log('PhotoCarousel received photos:', photos); // Debug log
+
+    if (!photos || photos.length === 0) {
+        console.log('No photos available'); // Debug log
+        return null;
+    }
+
+    return (
+        <div className="relative h-full rounded-lg overflow-hidden bg-gray-800">
+            <img
+                key={photos[currentIndex]}
+                src={photos[currentIndex]} // Remove getProxyPhotoUrl for now
+                alt="Venue photo"
+                className="w-full h-full object-cover"
+                onLoad={() => setIsLoading(false)}
+                onError={(e) => console.error('Image failed to load:', e)} // Add error handling
+            />
+
+            {photos.length > 1 && (
+                <>
+                    {/* Navigation Arrows */}
+                    <div className="absolute inset-0 flex items-center justify-between p-2">
+                        <button
+                            onClick={() => setCurrentIndex(prev => prev === 0 ? photos.length - 1 : prev - 1)}
+                            className="p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <button
+                            onClick={() => setCurrentIndex(prev => prev === photos.length - 1 ? 0 : prev + 1)}
+                            className="p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    {/* Photo Counter */}
+                    <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-black/50 text-white text-xs">
+                        {currentIndex + 1} / {photos.length}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
 
 export default function Recommendations({ results, locationA, locationB, isLoading }: RecommendationsProps) {
     const getStaticMapUrl = (address: string) => {
@@ -78,14 +139,40 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
             <h2 className="text-2xl font-bold text-white mb-4">Recommended Meeting Spots</h2>
             <div className="space-y-4">
                 {results.suggestions.map((suggestion, index) => (
-                    <div key={index} className="p-4 bg-gray-800/50 rounded-lg flex gap-4">
-                        <div className="flex-grow">
-                            <div className="flex justify-between items-center mb-3">
-                                <h3 className="text-xl font-bold text-white">{suggestion.name}</h3>
+                    <div key={index} className="bg-gray-800/50 rounded-lg relative min-h-[180px] p-4">
+                        {/* Left side content */}
+                        <div className="w-[45%]">
+                            {/* Header */}
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-xl font-bold text-white">{suggestion.name}</h3>
+                                    <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${suggestion.name} ${suggestion.address}`)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-gray-400 mt-1 hover:text-blue-400 transition-colors duration-200 flex items-center gap-1"
+                                    >
+                                        <span>{suggestion.address}</span>
+                                        <svg
+                                            className="w-4 h-4"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                            />
+                                        </svg>
+                                    </a>
+                                </div>
                                 <span className="text-gray-400">{suggestion.price}</span>
                             </div>
-                            <p className="text-gray-400 mb-3">{suggestion.address}</p>
-                            <ul className="space-y-2 text-gray-300">
+
+                            {/* Bullet points */}
+                            <ul className="space-y-2 text-gray-300 mt-2">
                                 {suggestion.bullets?.map((bullet, i) => (
                                     <li key={i} className="flex items-start">
                                         <span className="mr-2">•</span>
@@ -94,12 +181,22 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
                                 ))}
                             </ul>
                         </div>
-                        <div className="flex-shrink-0">
-                            <div className="w-[200px] h-[200px] rounded-lg overflow-hidden">
+
+                        {/* Right side container for photos and map */}
+                        <div className="absolute top-4 right-4 bottom-4 w-[50%] flex gap-4">
+                            {/* Photos */}
+                            {suggestion.photos && suggestion.photos.length > 0 && (
+                                <div className="flex-1">
+                                    <PhotoCarousel photos={suggestion.photos} />
+                                </div>
+                            )}
+
+                            {/* Map */}
+                            <div className="flex-1">
                                 <img
                                     src={getStaticMapUrl(suggestion.address)}
                                     alt={`Map showing ${suggestion.name} location`}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover rounded-lg"
                                 />
                             </div>
                         </div>
