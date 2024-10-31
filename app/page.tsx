@@ -44,15 +44,11 @@ export default function Home() {
             console.log('Received response:', data);
 
             if (!response.ok) {
-                throw new Error(data.error || `API error: ${response.status}`);
+                throw new Error(data.message || 'Failed to get recommendations');
             }
 
             if (!data.success) {
-                throw new Error(data.error || 'Failed to get recommendations');
-            }
-
-            if (!data.suggestions || !Array.isArray(data.suggestions)) {
-                throw new Error('Invalid response format');
+                throw new Error(data.message || 'No recommendations found');
             }
 
             setSearchResult(data);
@@ -60,10 +56,9 @@ export default function Home() {
         } catch (error: any) {
             console.error('Search error:', {
                 message: error.message,
-                stack: error.stack,
-                data: error
+                stack: error.stack
             });
-            setError(error.message || 'An unexpected error occurred');
+            setError(error.message || 'An error occurred while searching');
             setSearchResult(null);
         } finally {
             setIsLoading(false);

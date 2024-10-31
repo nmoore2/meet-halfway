@@ -16,7 +16,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     const [formData, setFormData] = useState({
         locationA: "Sloan's Lake, Denver, CO",
         locationB: 'Cherry Creek, Denver, CO',
-        activityType: 'Coffee Shop',
+        activityType: 'Cocktails',
         locationType: 'Any Location Type',
         meetupType: 'First Date',
         priceRange: 'any'

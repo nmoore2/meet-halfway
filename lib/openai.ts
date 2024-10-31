@@ -4,83 +4,63 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-interface ChatResponse {
-    bullets: string[];
-}
-
-export async function getChatGPTResponse(prompt: string): Promise<ChatResponse> {
+export async function getChatGPTResponse(prompt: string) {
     try {
-        console.log('\n🤖 ChatGPT Request:', {
-            prompt,
-            timestamp: new Date().toISOString()
-        });
-
-        const response = await openai.chat.completions.create({
+        const completion = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
-            messages: [
-                {
-                    role: "system",
-                    content: "You are a helpful local expert providing structured recommendations for meeting spots. Always respond with a rating and 3 categorized bullet points."
-                },
-                {
-                    role: "user",
-                    content: prompt
-                }
-            ],
+            messages: [{
+                role: "user",
+                content: prompt
+            }],
             temperature: 0.7,
-            max_tokens: 200
+            max_tokens: 1000
         });
 
-        const content = response.choices[0]?.message?.content || '';
-
-        console.log('\n✨ ChatGPT Response:', {
-            content,
-            timestamp: new Date().toISOString(),
-            tokens: response.usage
-        });
-
-        // Split into lines and filter empty lines
-        const lines = content.split('\n').filter(line => line.trim());
-
-        // Process the bullets to extract categories and descriptions
-        const bullets = lines.map(line => {
-            const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('•')) {
-                const [category, description] = trimmedLine.substring(1).split(':').map(s => s.trim());
-                return `• ${category}: ${description}`;
-            }
-            return trimmedLine;
-        });
-
-        return {
-            bullets: bullets.length ? bullets : ['No specific recommendations available']
-        };
+        return completion.choices[0].message.content;
     } catch (error) {
-        console.error('\n❌ ChatGPT Error:', {
-            error,
-            prompt,
-            timestamp: new Date().toISOString()
-        });
-        return {
-            bullets: ['Unable to generate recommendations at this time']
-        };
+        console.error('ChatGPT API error:', error);
+        throw error;
     }
 }
 
-function getPromptForActivityType(placeName: string[], activityType: string, meetupType: string) {
-    return `As a local Denver expert, rank and evaluate these ${activityType} spots for a ${meetupType}:
-    ${placeName.join(', ')}
+export async function getRecommendedVenues(activityType: string, meetupType: string, priceRange: string) {
+    try {
+        const prompt = `As a Denver expert, recommend and RANK the top 3 ${activityType.toLowerCase()} venues between Cherry Creek and Sloan's Lake that would be best for a ${meetupType.toLowerCase()}.
 
-    Rank them in order of best fit for a ${meetupType}, considering atmosphere, location, and overall experience.
-    For each place, provide:
-    • Why: Explain what makes it suitable (or not) for this type of meetup
-    • Best for: Describe in one line the ideal scenario
+        Return EXACTLY 3 venues in this EXACT format (including the numbers and bullet points):
 
-    Format your response as a numbered list, like this:
-    1. [Place Name]
-    • Why: [Detailed explanation about atmosphere, location, and suitability]
-    • Best for: [Brief, specific description of ideal use case]
+        1.
+        • Name: [Venue Name]
+        • Address: [Exact Denver Address]
+        • Best for: [One line description]
+        • Why: [2-3 sentences about atmosphere and suitability]
 
-    2. [Next Place]
-    ...`;
+        2.
+        • Name: [Venue Name]
+        • Address: [Exact Denver Address]
+        • Best for: [One line description]
+        • Why: [2-3 sentences about atmosphere and suitability]
+
+        3.
+        • Name: [Venue Name]
+        • Address: [Exact Denver Address]
+        • Best for: [One line description]
+        • Why: [2-3 sentences about atmosphere and suitability]`;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4-turbo-preview",
+            messages: [{
+                role: "user",
+                content: prompt
+            }],
+            temperature: 0.7,
+            max_tokens: 1000
+        });
+
+        console.log('ChatGPT Response:', completion.choices[0].message.content);
+        return completion.choices[0].message.content || '';
+    } catch (error) {
+        console.error('ChatGPT API error:', error);
+        throw error;
+    }
 } 
