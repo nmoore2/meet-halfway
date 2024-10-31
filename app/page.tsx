@@ -91,7 +91,7 @@ export default function Home() {
 
                 {searchResult && currentSearch && (
                     <Recommendations
-                        suggestions={searchResult.suggestions}
+                        results={searchResult}
                         locationA={currentSearch.locationA}
                         locationB={currentSearch.locationB}
                         isLoading={isLoading}

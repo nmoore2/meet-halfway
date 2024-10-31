@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PlaceAutocomplete from './PlaceAutocomplete';
 
 interface SearchFormProps {
@@ -14,11 +14,12 @@ interface SearchFormProps {
 
 export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     const [formData, setFormData] = useState({
-        locationA: 'Sloan\'s Lake, Denver, CO',
+        locationA: "Sloan's Lake, Denver, CO",
         locationB: 'Cherry Creek, Denver, CO',
         activityType: 'Coffee Shop',
-        locationType: 'any',
-        meetupType: 'any'
+        locationType: 'Any Location Type',
+        meetupType: 'First Date',
+        priceRange: 'any'
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,14 +49,46 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     `;
 
     const activityTypes = [
-        'Coffee Shop',
-        'Restaurant',
-        'Cocktail Bar',
-        'Park',
-        'Library',
-        'Museum',
-        'Bookstore',
-        'Cafe'
+        { value: 'Coffee Shop', label: 'Coffee Shop' },
+        { value: 'Restaurant', label: 'Restaurant' },
+        { value: 'Bar', label: 'Bar' },
+        { value: 'Cocktails', label: 'Cocktails' },
+        { value: 'Park', label: 'Park' },
+        { value: 'Museum', label: 'Museum' }
+    ];
+
+    // Get price range options based on activity type
+    const getPriceRangeOptions = () => {
+        if (formData.activityType === 'Coffee Shop') {
+            return [
+                { value: 'any', label: 'Any Price' },
+                { value: '$', label: '$' },
+                { value: '$$', label: '$$' }
+            ];
+        }
+
+        return [
+            { value: 'any', label: 'Any Price' },
+            { value: '$', label: '$' },
+            { value: '$$', label: '$$' },
+            { value: '$$$', label: '$$$' },
+            { value: '$$$$', label: '$$$$' }
+        ];
+    };
+
+    // Reset price range if switching to/from coffee shop and current selection is invalid
+    useEffect(() => {
+        if (formData.activityType === 'Coffee Shop' &&
+            (formData.priceRange === '$$$' || formData.priceRange === '$$$$')) {
+            setFormData(prev => ({ ...prev, priceRange: 'any' }));
+        }
+    }, [formData.activityType]);
+
+    const meetupTypes = [
+        { value: 'First Date', label: 'First Date' },
+        { value: 'Date', label: 'Date' },
+        { value: 'Business', label: 'Business' },
+        { value: 'Hangout', label: 'Hangout' }
     ];
 
     return (
@@ -91,33 +124,11 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                             className={selectClass}
                             disabled={isLoading}
                         >
-                            <option value="Coffee Shop">Coffee Shop</option>
-                            <option value="Restaurant">Restaurant</option>
-                            <option value="Park">Park</option>
-                            <option value="Library">Library</option>
-                            <option value="Museum">Museum</option>
-                        </select>
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-gray-300 text-sm">Location Type</label>
-                    <div className="relative">
-                        <select
-                            value={formData.locationType}
-                            onChange={(e) => setFormData(prev => ({ ...prev, locationType: e.target.value }))}
-                            className={selectClass}
-                            disabled={isLoading}
-                        >
-                            <option value="any">Any Location Type</option>
-                            <option value="downtown">Downtown</option>
-                            <option value="rural">Rural</option>
-                            <option value="suburbs">Suburbs</option>
+                            {activityTypes.map(type => (
+                                <option key={type.value} value={type.value}>
+                                    {type.label}
+                                </option>
+                            ))}
                         </select>
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,9 +147,11 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                             className={selectClass}
                             disabled={isLoading}
                         >
-                            <option value="any">Any Meetup Type</option>
-                            <option value="date">Date</option>
-                            <option value="business">Business</option>
+                            {meetupTypes.map(type => (
+                                <option key={type.value} value={type.value}>
+                                    {type.label}
+                                </option>
+                            ))}
                         </select>
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,27 +160,27 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div className="space-y-2">
-                <label className="text-gray-300 text-sm">Price Range</label>
-                <div className="relative">
-                    <select
-                        value={formData.priceRange}
-                        onChange={(e) => setFormData(prev => ({ ...prev, priceRange: e.target.value }))}
-                        className={selectClass}
-                        disabled={isLoading || formData.activityType === 'Park'}
-                    >
-                        <option value="any">Any Price</option>
-                        <option value="$">$</option>
-                        <option value="$$">$$</option>
-                        <option value="$$$">$$$</option>
-                        <option value="$$$$">$$$$</option>
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                        </svg>
+                <div className="space-y-2">
+                    <label className="text-gray-300 text-sm">Price Range</label>
+                    <div className="relative">
+                        <select
+                            value={formData.priceRange}
+                            onChange={(e) => setFormData(prev => ({ ...prev, priceRange: e.target.value }))}
+                            className={selectClass}
+                            disabled={isLoading}
+                        >
+                            {getPriceRangeOptions().map(option => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
                     </div>
                 </div>
             </div>

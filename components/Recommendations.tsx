@@ -18,19 +18,25 @@ interface Location {
 interface Suggestion {
     name: string;
     address: string;
+    price: string;
     why: string;
     bestFor: string;
-    price: string;
+    firstDateAppeal?: string;
+    conversationStarters?: string;
+    bullets: string[];
 }
 
 interface RecommendationsProps {
-    suggestions?: Suggestion[];
+    results: {
+        success: boolean;
+        suggestions: Suggestion[];
+    };
     locationA: string;
     locationB: string;
     isLoading: boolean;
 }
 
-export default function Recommendations({ suggestions = [], locationA, locationB, isLoading }: RecommendationsProps) {
+export default function Recommendations({ results, locationA, locationB, isLoading }: RecommendationsProps) {
     const getStaticMapUrl = (address: string) => {
         const markers = [
             `markers=color:red%7Clabel:A%7C${encodeURIComponent(locationA)}`,
@@ -58,28 +64,35 @@ export default function Recommendations({ suggestions = [], locationA, locationB
         );
     }
 
+    if (!results?.suggestions || results.suggestions.length === 0) {
+        return (
+            <div className="mt-8">
+                <h2 className="text-2xl font-bold text-white mb-4">No recommendations found</h2>
+                <p className="text-gray-400">Try adjusting your search criteria</p>
+            </div>
+        );
+    }
+
     return (
         <div className="mt-8">
             <h2 className="text-2xl font-bold text-white mb-4">Recommended Meeting Spots</h2>
             <div className="space-y-4">
-                {suggestions.map((suggestion, index) => (
+                {results.suggestions.map((suggestion, index) => (
                     <div key={index} className="p-4 bg-gray-800/50 rounded-lg flex gap-4">
                         <div className="flex-grow">
-                            <div className="flex items-center justify-between">
+                            <div className="flex justify-between items-center mb-3">
                                 <h3 className="text-xl font-bold text-white">{suggestion.name}</h3>
-                                <span className="text-gray-400 font-mono">{suggestion.price}</span>
+                                <span className="text-gray-400">{suggestion.price}</span>
                             </div>
-                            <p className="text-gray-400 mt-1">{suggestion.address}</p>
-                            <div className="mt-3 text-gray-300 space-y-2">
-                                <div className="flex items-start">
-                                    <span className="mr-2">•</span>
-                                    <span>Why: {suggestion.why}</span>
-                                </div>
-                                <div className="flex items-start">
-                                    <span className="mr-2">•</span>
-                                    <span>Best for: {suggestion.bestFor}</span>
-                                </div>
-                            </div>
+                            <p className="text-gray-400 mb-3">{suggestion.address}</p>
+                            <ul className="space-y-2 text-gray-300">
+                                {suggestion.bullets?.map((bullet, i) => (
+                                    <li key={i} className="flex items-start">
+                                        <span className="mr-2">•</span>
+                                        <span>{bullet}</span>
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
                         <div className="flex-shrink-0">
                             <div className="w-[200px] h-[200px] rounded-lg overflow-hidden">
