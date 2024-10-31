@@ -26,13 +26,14 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            setIsSubmitting(true);
-            console.log('Form data:', formData);
+            console.log('Form submitted with data:', formData);
             await onSubmit(formData);
-        } catch (error) {
-            console.error('SearchForm error:', error);
-        } finally {
-            setIsSubmitting(false);
+        } catch (error: any) {
+            console.error('Form submission error:', {
+                message: error.message,
+                stack: error.stack,
+                data: error
+            });
         }
     };
 
@@ -148,6 +149,29 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                 </div>
             </div>
 
+            <div className="space-y-2">
+                <label className="text-gray-300 text-sm">Price Range</label>
+                <div className="relative">
+                    <select
+                        value={formData.priceRange}
+                        onChange={(e) => setFormData(prev => ({ ...prev, priceRange: e.target.value }))}
+                        className={selectClass}
+                        disabled={isLoading || formData.activityType === 'Park'}
+                    >
+                        <option value="any">Any Price</option>
+                        <option value="$">$</option>
+                        <option value="$$">$$</option>
+                        <option value="$$$">$$$</option>
+                        <option value="$$$$">$$$$</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
             <button
                 type="submit"
                 className={`
@@ -161,7 +185,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                 `}
                 disabled={isLoading}
             >
-                {isLoading ? 'Find Places...' : 'Find Places'}
+                {isLoading ? 'Finding Places...' : 'Find Places'}
             </button>
         </form>
     );

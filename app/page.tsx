@@ -30,7 +30,7 @@ export default function Home() {
                 locationB: searchData.locationB
             });
 
-            console.log('Sending search request:', searchData);
+            console.log('Sending search request with data:', searchData);
 
             const response = await fetch('/api/search', {
                 method: 'POST',
@@ -58,8 +58,13 @@ export default function Home() {
             setSearchResult(data);
             setSuccess('Found some great meeting spots!');
         } catch (error: any) {
-            console.error('Search error:', error);
+            console.error('Search error:', {
+                message: error.message,
+                stack: error.stack,
+                data: error
+            });
             setError(error.message || 'An unexpected error occurred');
+            setSearchResult(null);
         } finally {
             setIsLoading(false);
         }

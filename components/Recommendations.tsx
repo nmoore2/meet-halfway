@@ -18,7 +18,9 @@ interface Location {
 interface Suggestion {
     name: string;
     address: string;
-    reasoning: string;
+    why: string;
+    bestFor: string;
+    price: string;
 }
 
 interface RecommendationsProps {
@@ -39,12 +41,6 @@ export default function Recommendations({ suggestions = [], locationA, locationB
         return `https://maps.googleapis.com/maps/api/staticmap?size=200x200&zoom=12&${markers}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
     };
 
-    const formatReasoning = (reasoning: string) => {
-        // Split the text into sentences
-        const sentences = reasoning.split(/[.!?]+/).filter(s => s.trim().length > 0);
-        return sentences.map(s => s.trim());
-    };
-
     if (isLoading) {
         return (
             <div className="mt-8">
@@ -62,15 +58,6 @@ export default function Recommendations({ suggestions = [], locationA, locationB
         );
     }
 
-    if (!suggestions || suggestions.length === 0) {
-        return (
-            <div className="mt-8">
-                <h2 className="text-2xl font-bold text-white mb-4">No recommendations found</h2>
-                <p className="text-gray-400">Try adjusting your search criteria</p>
-            </div>
-        );
-    }
-
     return (
         <div className="mt-8">
             <h2 className="text-2xl font-bold text-white mb-4">Recommended Meeting Spots</h2>
@@ -78,15 +65,20 @@ export default function Recommendations({ suggestions = [], locationA, locationB
                 {suggestions.map((suggestion, index) => (
                     <div key={index} className="p-4 bg-gray-800/50 rounded-lg flex gap-4">
                         <div className="flex-grow">
-                            <h3 className="text-xl font-bold text-white">{suggestion.name}</h3>
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xl font-bold text-white">{suggestion.name}</h3>
+                                <span className="text-gray-400 font-mono">{suggestion.price}</span>
+                            </div>
                             <p className="text-gray-400 mt-1">{suggestion.address}</p>
-                            <div className="mt-3 text-gray-300">
-                                {formatReasoning(suggestion.reasoning).map((point, i) => (
-                                    <div key={i} className="flex items-start mb-1">
-                                        <span className="mr-2">{point.startsWith('•') ? '' : '•'}</span>
-                                        <span>{point.trim().replace(/^•\s*/, '')}</span>
-                                    </div>
-                                ))}
+                            <div className="mt-3 text-gray-300 space-y-2">
+                                <div className="flex items-start">
+                                    <span className="mr-2">•</span>
+                                    <span>Why: {suggestion.why}</span>
+                                </div>
+                                <div className="flex items-start">
+                                    <span className="mr-2">•</span>
+                                    <span>Best for: {suggestion.bestFor}</span>
+                                </div>
                             </div>
                         </div>
                         <div className="flex-shrink-0">
