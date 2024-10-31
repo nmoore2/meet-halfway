@@ -171,15 +171,33 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
                                 <span className="text-gray-400">{suggestion.price}</span>
                             </div>
 
-                            {/* Bullet points */}
-                            <ul className="space-y-2 text-gray-300 mt-2">
-                                {suggestion.bullets?.map((bullet, i) => (
-                                    <li key={i} className="flex items-start">
-                                        <span className="mr-2">•</span>
-                                        <span>{bullet}</span>
-                                    </li>
-                                ))}
-                            </ul>
+                            {/* Updated bullet points display */}
+                            <div className="mt-4 space-y-3">
+                                {suggestion.bullets?.map((bullet, i) => {
+                                    if (bullet.startsWith('Rating:')) {
+                                        return null; // Skip displaying the rating
+                                    }
+                                    // Check if the bullet starts with a bullet point and remove it
+                                    const cleanBullet = bullet.startsWith('•') ? bullet.substring(1).trim() : bullet;
+
+                                    // Now split on the first colon
+                                    const colonIndex = cleanBullet.indexOf(':');
+                                    if (colonIndex === -1) return null;
+
+                                    const category = cleanBullet.substring(0, colonIndex).trim();
+                                    const description = cleanBullet.substring(colonIndex + 1).trim();
+
+                                    return (
+                                        <div key={i} className="flex items-start">
+                                            <span className="text-gray-300 mr-2">•</span>
+                                            <div>
+                                                <span className="text-gray-300 font-semibold">{category}: </span>
+                                                <span className="text-gray-300">{description || 'undefined'}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
 
                         {/* Right side container for photos and map */}

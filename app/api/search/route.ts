@@ -13,7 +13,10 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        const suggestions = await findPlacesWithGoogle(searchData);
+        const suggestions = await findPlacesWithGoogle(searchData).catch(error => {
+            console.error('Failed to find places:', error);
+            throw new Error('Failed to connect to external services. Please try again.');
+        });
 
         if (!suggestions || suggestions.length === 0) {
             return NextResponse.json({
@@ -30,15 +33,41 @@ export async function POST(request: Request) {
     } catch (error: any) {
         console.error('Search error:', {
             message: error.message,
-            stack: error.stack
+            stack: error.stack,
+            name: error.name
         });
 
         return NextResponse.json({
             success: false,
             message: error.message || 'Failed to get recommendations',
-            error: process.env.NODE_ENV === 'development' ? error.stack : undefined
-        }, { status: 500 });
+            error: process.env.NODE_ENV === 'development' ? {
+                stack: error.stack,
+                name: error.name
+            } : undefined
+        }, {
+            status: error.name === 'ERR_CONNECTION_REFUSED' ? 503 : 500,
+            headers: {
+                'Retry-After': '5'
+            }
+        });
     }
+}
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url, {
+                ...options,
+                signal: AbortSignal.timeout(5000) // 5 second timeout
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return response;
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+        }
+    }
+    throw new Error('Failed after retries');
 }
 
 async function findPlacesWithGoogle(searchData: any) {
@@ -71,7 +100,7 @@ async function findPlacesWithGoogle(searchData: any) {
         placesUrl.searchParams.append('keyword', activityType);
         placesUrl.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
 
-        const placesResponse = await fetch(placesUrl);
+        const placesResponse = await fetchWithRetry(placesUrl.toString(), {});
         if (!placesResponse.ok) {
             throw new Error(`Places API error: ${placesResponse.statusText}`);
         }
@@ -90,7 +119,7 @@ async function findPlacesWithGoogle(searchData: any) {
                 detailsUrl.searchParams.append('fields', 'name,vicinity,price_level,photos');
                 detailsUrl.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
 
-                const detailsResponse = await fetch(detailsUrl);
+                const detailsResponse = await fetchWithRetry(detailsUrl.toString(), {});
                 if (!detailsResponse.ok) {
                     throw new Error(`Failed to get details for ${place.name}`);
                 }
@@ -120,44 +149,37 @@ async function findPlacesWithGoogle(searchData: any) {
         }
 
         // Process places with chat responses
-        const results = await Promise.all(
-            detailedPlaces.map(async (place: any) => {
-                try {
-                    const chatResponse = await getChatGPTResponse(
-                        getPromptForActivityType(place.name, activityType, meetupType)
-                    );
+        const placeNames = detailedPlaces.map(place => place.name);
 
-                    // Extract rating from the first line
-                    const rating = parseInt(chatResponse.bullets[0].match(/Rating: (\d+)/)?.[1] || '0');
-
-                    // Remove the rating line from bullets
-                    const bullets = chatResponse.bullets.filter(bullet => !bullet.startsWith('Rating:'));
-
-                    return {
-                        name: place.name,
-                        address: place.vicinity,
-                        price: ''.padStart(place.price_level || 1, '$'),
-                        rating: rating,
-                        bullets: bullets,
-                        photos: place.photos
-                    };
-                } catch (chatError) {
-                    console.error(`Chat error for ${place.name}:`, chatError);
-                    return null;
-                }
-            })
-        ).then(results =>
-            results
-                .filter(Boolean)
-                // Sort by rating in descending order
-                .sort((a, b) => (b?.rating || 0) - (a?.rating || 0))
+        // Get the ranked recommendations
+        const chatResponse = await getChatGPTResponse(
+            getPromptForActivityType(placeNames, activityType, meetupType)
         );
 
-        if (results.length === 0) {
-            throw new Error('No results could be processed completely');
-        }
+        // Parse the response to create a map of place names to their descriptions
+        const placeDescriptions = new Map();
+        let currentPlace = '';
 
-        return results;
+        chatResponse.bullets.forEach(line => {
+            if (line.match(/^\d+\./)) {
+                // This is a place name line (e.g., "1. Little Owl Coffee")
+                currentPlace = line.split('. ')[1];
+            } else if (currentPlace && (line.startsWith('• Why:') || line.startsWith('• Best for:'))) {
+                if (!placeDescriptions.has(currentPlace)) {
+                    placeDescriptions.set(currentPlace, []);
+                }
+                placeDescriptions.get(currentPlace).push(line);
+            }
+        });
+
+        // Map the descriptions back to the places
+        return detailedPlaces.map(place => ({
+            name: place.name,
+            address: place.vicinity,
+            price: ''.padStart(place.price_level || 1, '$'),
+            bullets: placeDescriptions.get(place.name) || [],
+            photos: place.photos
+        }));
 
     } catch (error: any) {
         console.error('Places API error:', {
@@ -168,21 +190,20 @@ async function findPlacesWithGoogle(searchData: any) {
     }
 }
 
-function getPromptForActivityType(placeName: string, activityType: string, meetupType: string) {
-    return `As a local Denver expert, evaluate ${placeName} as a ${activityType} spot for a ${meetupType}. 
-    First, rate this venue from 1-10 for this specific type of meetup, where 10 is perfect.
-    Then provide exactly 3 bullet points about the venue.
-    
-    Focus your evaluation and bullet points on:
-    • Atmosphere and ambiance
-    • Unique features or specialties
-    • Why it's specifically good (or not) for ${meetupType}
-    
-    Format your response exactly like this:
-    Rating: [1-10]
-    • [First bullet point]
-    • [Second bullet point]
-    • [Third bullet point]
-    
-    Keep each bullet under 80 characters.`;
+function getPromptForActivityType(placeName: string[], activityType: string, meetupType: string) {
+    return `As a local Denver expert, rank and evaluate these ${activityType} spots for a ${meetupType}:
+    ${placeName.join(', ')}
+
+    Rank them in order of best fit for a ${meetupType}, considering atmosphere, location, and overall experience.
+    For each place, provide:
+    • Why: Explain what makes it suitable (or not) for this type of meetup
+    • Best for: Describe in one line the ideal scenario
+
+    Format your response as a numbered list, like this:
+    1. [Place Name]
+    • Why: [Detailed explanation about atmosphere, location, and suitability]
+    • Best for: [Brief, specific description of ideal use case]
+
+    2. [Next Place]
+    ...`;
 }
