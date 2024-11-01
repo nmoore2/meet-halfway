@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import SearchForm from '../components/SearchForm';
 import Recommendations from '../components/Recommendations';
+import { Toast } from '../components/Toast';
 
 interface SearchResult {
     success: boolean;
@@ -11,8 +12,8 @@ interface SearchResult {
 }
 
 export default function Home() {
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
+    const [showToast, setShowToast] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
     const [currentSearch, setCurrentSearch] = useState<{
@@ -22,8 +23,6 @@ export default function Home() {
 
     const handleSearch = async (searchData: any) => {
         try {
-            setError(null);
-            setSuccess(null);
             setIsLoading(true);
             setCurrentSearch({
                 locationA: searchData.locationA,
@@ -52,13 +51,17 @@ export default function Home() {
             }
 
             setSearchResult(data);
-            setSuccess('Found some great meeting spots!');
+            setToastMessage('Found some great meeting spots!');
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 3000);
         } catch (error: any) {
             console.error('Search error:', {
                 message: error.message,
                 stack: error.stack
             });
-            setError(error.message || 'An error occurred while searching');
+            setToastMessage(error.message || 'An error occurred while searching');
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 3000);
             setSearchResult(null);
         } finally {
             setIsLoading(false);
@@ -66,24 +69,11 @@ export default function Home() {
     };
 
     return (
-        <main className="min-h-screen p-8">
-            <div className="max-w-4xl mx-auto">
+        <main className="max-w-[1440px] py-16 sm:py-24 mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-5xl mx-auto">
                 <h1 className="text-4xl font-bold text-center mb-8">Meet Halfway</h1>
-
-                {error && (
-                    <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-                        {error}
-                    </div>
-                )}
-
-                {success && (
-                    <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-                        {success}
-                    </div>
-                )}
-
+                {showToast && <Toast message={toastMessage} />}
                 <SearchForm onSubmit={handleSearch} isLoading={isLoading} />
-
                 {searchResult && currentSearch && (
                     <Recommendations
                         results={searchResult}

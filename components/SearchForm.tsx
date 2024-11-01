@@ -7,7 +7,7 @@ interface SearchFormProps {
         locationB: string;
         activityType: string;
         locationType: string;
-        meetupType: string;
+        vibe: string;
     }) => void;
     isLoading?: boolean;
 }
@@ -18,7 +18,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
         locationB: 'Cherry Creek, Denver, CO',
         activityType: 'Cocktails',
         locationType: 'Any Location Type',
-        meetupType: 'First Date',
+        vibe: 'First Date',
         priceRange: 'any'
     });
 
@@ -84,122 +84,192 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
         }
     }, [formData.activityType]);
 
-    const meetupTypes = [
+    const vibes = [
         { value: 'First Date', label: 'First Date' },
         { value: 'Date', label: 'Date' },
         { value: 'Business', label: 'Business' },
         { value: 'Hangout', label: 'Hangout' }
     ];
 
+    // First, create a custom styles object for the Google Places Autocomplete
+    const customStyles = {
+        input: {
+            width: '100%',
+            padding: '0.75rem',
+            backgroundColor: '#2A2A2A',
+            color: 'white',
+            borderRadius: '0.5rem',
+            border: '1px solid #333333',
+        },
+        autocompleteContainer: {
+            // Container that holds the entire autocomplete component
+            width: '100%',
+        },
+        autocompleteItem: {
+            // Individual suggestion items
+            backgroundColor: '#1A1A1A',
+            color: '#FFFFFF',
+            padding: '10px',
+            cursor: 'pointer',
+            borderBottom: '1px solid #333333',
+        },
+        autocompleteItemActive: {
+            // Highlighted/selected item
+            backgroundColor: '#2A2A2A',
+        },
+        suggestionsList: {
+            // The list container
+            backgroundColor: '#1A1A1A',
+            border: '1px solid #333333',
+            borderRadius: '0.5rem',
+            marginTop: '0.5rem',
+            padding: 0,
+            listStyle: 'none',
+        }
+    };
+
+    const handleSelect = (address: string) => {
+        // Update the input value
+        setFormData(prev => ({ ...prev, locationA: address }));
+
+        // Any additional logic you need when an address is selected
+        // For example, storing in state or form data
+    };
+
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                    <label className="text-gray-300 text-sm">First Location</label>
-                    <PlaceAutocomplete
-                        value={formData.locationA}
-                        onChange={(value) => setFormData(prev => ({ ...prev, locationA: value }))}
-                        placeholder="Enter first location"
-                        disabled={isLoading}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <label className="text-gray-300 text-sm">Second Location</label>
-                    <PlaceAutocomplete
-                        value={formData.locationB}
-                        onChange={(value) => setFormData(prev => ({ ...prev, locationB: value }))}
-                        placeholder="Enter second location"
-                        disabled={isLoading}
-                    />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                    <label className="text-gray-300 text-sm">Activity Type</label>
-                    <div className="relative">
-                        <select
-                            value={formData.activityType}
-                            onChange={(e) => setFormData(prev => ({ ...prev, activityType: e.target.value }))}
-                            className={selectClass}
+        <form onSubmit={handleSubmit} className="space-y-8 relative">
+            {/* Location inputs - side by side */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 relative z-20">
+                <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                        First Location
+                    </label>
+                    {/* First location input */}
+                    <div className="max-w-full">
+                        <PlaceAutocomplete
+                            value={formData.locationA}
+                            onChange={(value) => setFormData(prev => ({ ...prev, locationA: value }))}
+                            placeholder="Enter first location"
                             disabled={isLoading}
-                        >
-                            {activityTypes.map(type => (
-                                <option key={type.value} value={type.value}>
-                                    {type.label}
-                                </option>
-                            ))}
-                        </select>
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
+                            styles={customStyles}
+                            onSelect={handleSelect}
+                        />
                     </div>
                 </div>
 
-                <div className="space-y-2">
-                    <label className="text-gray-300 text-sm">Meetup Type</label>
-                    <div className="relative">
-                        <select
-                            value={formData.meetupType}
-                            onChange={(e) => setFormData(prev => ({ ...prev, meetupType: e.target.value }))}
-                            className={selectClass}
+                <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Second Location
+                    </label>
+                    {/* Second location input */}
+                    <div className="max-w-full">
+                        <PlaceAutocomplete
+                            value={formData.locationB}
+                            onChange={(value) => setFormData(prev => ({ ...prev, locationB: value }))}
+                            placeholder="Enter second location"
                             disabled={isLoading}
-                        >
-                            {meetupTypes.map(type => (
-                                <option key={type.value} value={type.value}>
-                                    {type.label}
-                                </option>
-                            ))}
-                        </select>
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-gray-300 text-sm">Price Range</label>
-                    <div className="relative">
-                        <select
-                            value={formData.priceRange}
-                            onChange={(e) => setFormData(prev => ({ ...prev, priceRange: e.target.value }))}
-                            className={selectClass}
-                            disabled={isLoading}
-                        >
-                            {getPriceRangeOptions().map(option => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
+                            styles={customStyles}
+                        />
                     </div>
                 </div>
             </div>
 
+            {/* Filters in one row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-8">
+                <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Location Type
+                    </label>
+                    <div className="relative">
+                        <select
+                            className="
+                                w-full p-3 pr-10 
+                                bg-[#2A2A2A] text-white 
+                                rounded-lg border border-[#333333] 
+                                appearance-none 
+                                cursor-pointer
+                                focus:outline-none focus:border-[#444444]
+                            "
+                        >
+                            <option>Cocktails</option>
+                            {/* other options */}
+                        </select>
+                        {/* Dropdown arrow */}
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Vibe
+                    </label>
+                    <div className="relative">
+                        <select
+                            className="
+                                w-full p-3 pr-10 
+                                bg-[#2A2A2A] text-white 
+                                rounded-lg border border-[#333333] 
+                                appearance-none 
+                                cursor-pointer
+                                focus:outline-none focus:border-[#444444]
+                            "
+                        >
+                            <option>First Date</option>
+                            {/* other options */}
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Price Range
+                    </label>
+                    <div className="relative">
+                        <select
+                            className="
+                                w-full p-3 pr-10 
+                                bg-[#2A2A2A] text-white 
+                                rounded-lg border border-[#333333] 
+                                appearance-none 
+                                cursor-pointer
+                                focus:outline-none focus:border-[#444444]
+                            "
+                        >
+                            <option>Any Price</option>
+                            {/* other options */}
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Full width submit button */}
             <button
                 type="submit"
-                className={`
-                    w-full p-3 rounded-lg font-medium
-                    bg-[#bb86fc] hover:bg-opacity-90
-                    text-gray-900
-                    disabled:opacity-50 disabled:cursor-not-allowed
-                    transform transition-all duration-200
-                    hover:shadow-lg
-                    ${isLoading ? 'animate-pulse' : ''}
-                `}
-                disabled={isLoading}
+                className="w-full p-3 rounded-lg font-medium bg-[#0071e3] hover:bg-[#0077ED] text-white"
             >
-                {isLoading ? 'Finding Places...' : 'Find Places'}
+                Find Places
             </button>
+
+            {/* Loading spinner - position it behind the inputs */}
+            {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                </div>
+            )}
         </form>
     );
 }
