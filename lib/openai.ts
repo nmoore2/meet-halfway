@@ -32,7 +32,7 @@ export async function getRecommendedVenues(
         - Atmosphere should be suitable for a ${meetupType.toLowerCase()}
         ${priceRange !== 'any' ? `- Price range should be ${priceRange}` : ''}
         
-        Format each suggestion as:
+        Format each suggestion EXACTLY as follows (do not use asterisks or other special characters):
         Name: [venue name]
         Address: [full address]
         Best For: [short description of ideal use case]
