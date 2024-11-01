@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import PhotoCarousel from './PhotoCarousel';
+import LoadingState from './LoadingState';
 
 interface DriveTime {
     fromA: string;
@@ -23,67 +25,12 @@ interface RecommendationsProps {
             };
             driveTimes?: DriveTime;
         }>;
-    };
-    locationA: string;
-    locationB: string;
+    } | null;
+    locationA?: string;
+    locationB?: string;
     isLoading: boolean;
+    meetupType?: string;
 }
-
-// [Keep PhotoCarousel component exactly as is]
-const PhotoCarousel = ({ photos }: { photos: string[] }) => {
-    const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-
-    if (!photos.length) {
-        return (
-            <div className="w-full h-[250px] bg-gray-800 rounded-lg flex items-center justify-center">
-                <span className="text-gray-400">No photos available</span>
-            </div>
-        );
-    }
-
-    const nextPhoto = () => {
-        setCurrentPhotoIndex((prev) => (prev + 1) % photos.length);
-    };
-
-    const previousPhoto = () => {
-        setCurrentPhotoIndex((prev) => (prev - 1 + photos.length) % photos.length);
-    };
-
-    return (
-        <div className="relative h-[250px] rounded-lg overflow-hidden">
-            <img
-                src={photos[currentPhotoIndex]}
-                alt={`Venue photo ${currentPhotoIndex + 1}`}
-                className="w-full h-full object-cover"
-            />
-            {photos.length > 1 && (
-                <>
-                    <button
-                        onClick={previousPhoto}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 p-1 bg-gray-600 hover:bg-gray-500 rounded-full transition-colors"
-                        aria-label="Previous photo"
-                    >
-                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                    </button>
-                    <button
-                        onClick={nextPhoto}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 bg-gray-600 hover:bg-gray-500 rounded-full transition-colors"
-                        aria-label="Next photo"
-                    >
-                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                    </button>
-                    <div className="absolute bottom-2 right-2 bg-gray-600 px-2 py-1 rounded text-xs text-white">
-                        {currentPhotoIndex + 1} / {photos.length}
-                    </div>
-                </>
-            )}
-        </div>
-    );
-};
 
 // [Keep getPriceDisplay exactly as is]
 const getPriceDisplay = (price_level?: number) => {
@@ -119,7 +66,20 @@ const DriveTimeDisplay = ({ driveTimes, locationA, locationB }: {
     locationA: string;
     locationB: string;
 }) => {
+    // Extract city name from full address
+    const getCityName = (location: string) => {
+        // Add null check
+        if (!location) return '';
+
+        // Split by comma and get first part (city/area name)
+        const parts = location.split(',');
+        return parts[0].trim();
+    };
+
     if (!driveTimes) return null;
+
+    const locationAName = getCityName(locationA);
+    const locationBName = getCityName(locationB);
 
     return (
         <div className="text-sm text-gray-400 flex items-center">
@@ -136,9 +96,9 @@ const DriveTimeDisplay = ({ driveTimes, locationA, locationB }: {
                     d="M5 17h14M7 9h10l2 4M5 13l2-4"
                 />
             </svg>
-            <span>Sloan's Lake: 8m</span>
+            <span>From {locationAName}: {driveTimes.fromA}</span>
             <span className="mx-2 text-gray-600">•</span>
-            <span>Cherry Creek: 18m</span>
+            <span>From {locationBName}: {driveTimes.fromB}</span>
         </div>
     );
 };
@@ -193,131 +153,136 @@ const VenueMap = ({ locationA, locationB, venue }: {
     );
 };
 
-export default function Recommendations({ results, locationA, locationB, isLoading }: RecommendationsProps) {
-    if (isLoading) {
-        return (
-            <div className="space-y-8 mt-8">
-                <h2 className="text-2xl font-bold mb-4 text-white">
-                    Finding the Perfect Spots...
-                </h2>
-                <div className="space-y-12">
-                    {[1, 2, 3].map((i) => (
-                        <div
-                            key={i}
-                            className="bg-[#1A1A1A] rounded-xl p-6 border border-[#333333] animate-pulse"
-                        >
-                            <div className="flex flex-col lg:flex-row gap-6">
-                                {/* Text content skeleton */}
-                                <div className="lg:w-1/2">
-                                    <div className="h-7 bg-gray-700 rounded w-3/4 mb-3"></div>
-                                    <div className="h-4 bg-gray-700 rounded w-1/4 mb-4"></div>
-                                    <div className="space-y-2">
-                                        <div className="h-4 bg-gray-700 rounded w-full"></div>
-                                        <div className="h-4 bg-gray-700 rounded w-5/6"></div>
-                                        <div className="h-4 bg-gray-700 rounded w-4/6"></div>
-                                    </div>
-                                    <div className="h-4 bg-gray-700 rounded w-2/4 mt-4"></div>
-                                </div>
+const getCityName = (location: string) => {
+    if (!location) return '';
+    const parts = location.split(',');
+    return parts[0].trim();
+};
 
-                                {/* Media skeleton */}
-                                <div className="flex flex-col sm:flex-row gap-6 lg:w-1/2">
-                                    {/* Photo carousel skeleton */}
-                                    <div className="sm:w-3/5 h-[250px] bg-gray-700 rounded-lg flex-shrink-0"></div>
-                                    {/* Map skeleton */}
-                                    <div className="sm:w-2/5 h-[250px] bg-gray-700 rounded-lg flex-shrink-0"></div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+const formatDriveTime = (driveTimes: DriveTime, locationA: string, locationB: string) => {
+    const cityA = getCityName(locationA || '');
+    const cityB = getCityName(locationB || '');
+
+    return (
+        <div className="flex items-center text-sm text-gray-400 gap-4">
+            <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+                From {cityA || 'Location A'}: {driveTimes.fromA}
+            </div>
+            <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+                From {cityB || 'Location B'}: {driveTimes.fromB}
+            </div>
+        </div>
+    );
+};
+
+export default function Recommendations({ results, locationA, locationB, isLoading, meetupType = 'meetup' }: RecommendationsProps) {
+    if (isLoading) {
+        return <LoadingState activityType={results?.suggestions[0]?.bestFor || ''} />;
+    }
+
+    // Handle error state
+    if (results?.error) {
+        return (
+            <div className="mt-8 p-6 bg-[#1A1A1A] rounded-xl border border-[#333333]">
+                <div className="flex items-center gap-3 text-[#FF3B30]">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-lg">{results.error}</span>
                 </div>
             </div>
         );
     }
 
+    // Only show results if we have them
+    if (!results?.suggestions?.length) {
+        return null;
+    }
+
     return (
-        <div className="space-y-8 mt-8 text-white">
-            <h2 className="text-2xl font-bold mb-4 text-white">
-                Recommended Meeting Spots
-            </h2>
-            <div className="space-y-12">
-                {results.suggestions.map((suggestion, index) => (
-                    <div
-                        key={index}
-                        className="bg-[#1A1A1A] rounded-xl p-6 hover:bg-[#222222] transition-colors duration-200 border border-[#333333] overflow-hidden"
-                    >
-                        <div className="flex flex-col lg:flex-row gap-6">
-                            {/* Text content */}
-                            <div className="lg:w-1/2 min-w-[300px]">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <h3 className="text-xl font-semibold text-white">{suggestion.name}</h3>
-                                    <a
-                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                                            suggestion.name + ' ' + suggestion.address
-                                        )}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-gray-400 hover:text-sky-400 transition-colors"
-                                        title="Open in Google Maps"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                    </a>
-                                    {suggestion.price_level !== undefined && getPriceDisplay(suggestion.price_level)}
-                                </div>
+        <div className="mt-12">
+            {isLoading ? (
+                <LoadingState activityType={results?.suggestions[0]?.bestFor || ''} />
+            ) : results?.suggestions && results.suggestions.length > 0 ? (
+                <>
+                    <h2 className="text-2xl font-bold mb-8">
+                        Here Are the Best Spots to Meet for a {meetupType}
+                    </h2>
+                    <div className="space-y-12">
+                        {results.suggestions.map((suggestion, index) => (
+                            <div
+                                key={index}
+                                className="bg-[#1A1A1A] rounded-xl p-6 hover:bg-[#222222] transition-colors duration-200 border border-[#333333] overflow-hidden"
+                            >
+                                <div className="flex flex-col lg:flex-row gap-6">
+                                    {/* Text content */}
+                                    <div className="lg:w-1/2 min-w-[300px]">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <h3 className="text-xl font-semibold text-white">{suggestion.name}</h3>
+                                            <a
+                                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                                    suggestion.name + ' ' + suggestion.address
+                                                )}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-gray-400 hover:text-sky-400 transition-colors"
+                                                title="Open in Google Maps"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                </svg>
+                                            </a>
+                                            {suggestion.price_level !== undefined && getPriceDisplay(suggestion.price_level)}
+                                        </div>
 
-                                {/* Description section */}
-                                <div className="text-gray-300 mb-4">
-                                    <div className="text-[#0071e3] font-medium mb-2">Best for: {suggestion.bestFor}</div>
-                                    <div>
-                                        <span className="font-medium">Why: </span>
-                                        {suggestion.why}
+                                        {/* Description section */}
+                                        <div className="text-gray-300 mb-4">
+                                            <div className="text-[#0071e3] font-medium mb-2">Best for: {suggestion.bestFor}</div>
+                                            <div>
+                                                <span className="font-medium">Why: </span>
+                                                {suggestion.why}
+                                            </div>
+                                        </div>
+
+                                        {suggestion.driveTimes && (
+                                            <div className="mt-2">
+                                                {formatDriveTime(suggestion.driveTimes, locationA, locationB)}
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
 
-                                <div className="text-sm text-gray-400 flex items-center">
-                                    <svg
-                                        className="w-5 h-5 mr-2"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={1.5}
-                                            d="M5 17h14M7 9h10l2 4M5 13l2-4"
-                                        />
-                                    </svg>
-                                    <span>Sloan's Lake: 8m</span>
-                                    <span className="mx-2 text-gray-600">•</span>
-                                    <span>Cherry Creek: 18m</span>
-                                </div>
-                            </div>
+                                    {/* Media container */}
+                                    <div className="flex flex-col sm:flex-row gap-6 lg:w-1/2">
+                                        {/* Photo carousel */}
+                                        <div className="sm:w-3/5 flex-shrink-0">
+                                            <PhotoCarousel photos={suggestion.photos || []} />
+                                        </div>
 
-                            {/* Media container */}
-                            <div className="flex flex-col sm:flex-row gap-6 lg:w-1/2">
-                                {/* Photo carousel */}
-                                <div className="sm:w-3/5 flex-shrink-0">
-                                    <PhotoCarousel photos={suggestion.photos || []} />
-                                </div>
-
-                                {/* Map container - increased right padding */}
-                                <div className="sm:w-2/5 flex-shrink-0 pr-6">
-                                    <div className="h-[250px] rounded-lg overflow-hidden">
-                                        <VenueMap
-                                            locationA={locationA}
-                                            locationB={locationB}
-                                            venue={suggestion}
-                                        />
+                                        {/* Map container - increased right padding */}
+                                        <div className="sm:w-2/5 flex-shrink-0 pr-6">
+                                            <div className="h-[250px] rounded-lg overflow-hidden">
+                                                <VenueMap
+                                                    locationA={locationA}
+                                                    locationB={locationB}
+                                                    venue={suggestion}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        ))}
                     </div>
-                ))}
-            </div>
+                </>
+            ) : null}
         </div>
     );
 }  

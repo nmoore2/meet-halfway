@@ -8,73 +8,59 @@ const openai = new OpenAI({
 const responseCache = new Map<string, { timestamp: number; data: string }>();
 const CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hour
 
-export async function getRecommendedVenues(activityType: string, meetupType: string, priceRange: string) {
+export async function getRecommendedVenues(
+    activityType: string,
+    meetupType: string,
+    priceRange: string,
+    location1: string,
+    location2: string
+) {
     try {
-        // More specific price guidance with strict ranges
-        let priceGuidance = '';
-        switch (priceRange) {
-            case '$':
-                priceGuidance = `STRICT REQUIREMENT: Only recommend budget-friendly venues where cocktails cost $8-12.
-                - Must have happy hour deals or regular prices in this range
-                - Exclude any upscale or premium venues
-                - Focus on casual neighborhood bars and affordable spots
-                Example venues: dive bars, casual pubs, neighborhood taverns`;
-                break;
-            case '$$':
-                priceGuidance = `STRICT REQUIREMENT: Only recommend mid-range venues where cocktails cost $12-15.
-                - Standard craft cocktail bars
-                - Regular menu prices should be in this range
-                - No premium or luxury venues`;
-                break;
-            case '$$$':
-                priceGuidance = `STRICT REQUIREMENT: Only recommend upscale venues where cocktails cost $15-20.
-                - Higher-end cocktail lounges
-                - Upscale bars and restaurants
-                - Premium ingredients and presentation`;
-                break;
-            case '$$$$':
-                priceGuidance = `STRICT REQUIREMENT: Only recommend luxury venues where cocktails cost $20+.
-                - Exclusive cocktail bars (like Lady Jane)
-                - High-end speakeasies
-                - Premium spirits and elaborate presentations
-                - Fine dining restaurant bars`;
-                break;
-            default:
-                priceGuidance = 'Include a mix of price points';
+        // Add debug logging
+        console.log('Received locations:', { location1, location2, activityType, meetupType, priceRange });
+
+        if (!location1 || !location2) {
+            throw new Error('Both locations are required');
         }
 
-        const prompt = `As a Denver cocktail expert, recommend EXACTLY 3 venues between Cherry Creek and Sloan's Lake for a ${meetupType}.
+        const prompt = `Find real venues that are roughly halfway between ${location1} and ${location2} for a ${meetupType.toLowerCase()}. 
+        Focus on ${activityType.toLowerCase()} venues that are actually located between these two points.
 
-${priceGuidance}
+        Consider these factors:
+        - Travel time should be similar from both starting locations (within 5-10 minutes difference)
+        - Venue should match the ${activityType.toLowerCase()} category
+        - Atmosphere should be suitable for a ${meetupType.toLowerCase()}
+        ${priceRange !== 'any' ? `- Price range should be ${priceRange}` : ''}
+        
+        Format each suggestion as:
+        Name: [venue name]
+        Address: [full address]
+        Best For: [short description of ideal use case]
+        Why: [2-3 sentences explaining why this spot is good for meeting halfway]
 
-CRITICAL: Price range is the TOP priority. Do NOT recommend venues outside the specified price range, even if they're great for other reasons.
+        Please provide 3-5 real, currently operating venues that best match these criteria.`;
 
-Return recommendations in this format:
-1.
-• Name: [Venue Name]
-• Address: [Exact Denver Address]
-• Best for: [One line description]
-• Why: [2 sentences about atmosphere and experience, mentioning price point]`;
+        console.log('Sending prompt to OpenAI:', prompt);  // Debug log
 
         const completion = await openai.chat.completions.create({
             model: "gpt-4-turbo-preview",
             messages: [
                 {
                     role: "system",
-                    content: "You are a Denver expert specializing in recommending venues that STRICTLY match the specified price range. Never suggest venues outside the requested price bracket."
+                    content: "You are an expert at recommending venues that are genuinely halfway between two locations. Focus on finding truly equidistant spots that make the journey fair for both parties. Use your geographical knowledge to suggest real venues that actually exist between the given locations."
                 },
                 {
                     role: "user",
                     content: prompt
                 }
             ],
-            temperature: 0.5, // Lower temperature for more consistent price adherence
+            temperature: 0.2,
             max_tokens: 1000
         });
 
         return completion.choices[0].message.content || '';
     } catch (error) {
-        console.error('ChatGPT API error:', error);
+        console.error('OpenAI API error:', error);
         throw error;
     }
 }
@@ -85,7 +71,6 @@ function getPriceGuidance(priceRange: string): string {
         '$': 'ONLY suggest places with cocktails $8-12.',
         '$$': 'ONLY suggest places with cocktails $12-15.',
         '$$$': 'ONLY suggest places with cocktails $15-20.',
-        '$$$$': 'ONLY suggest places with cocktails $20+.',
         'any': 'Include various price points.'
     };
 

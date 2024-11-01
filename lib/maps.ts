@@ -96,3 +96,35 @@ export async function getDriveTimes(origin: string, destinations: string[]): Pro
         return destinations.map(() => 'Unknown');
     }
 }
+
+export function getStaticMapUrl(locationA: string, locationB: string, venue: { location?: { lat: number; lng: number } }) {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+    // Define markers with different colors and labels
+    const markers = [
+        // Location A marker (blue)
+        `markers=color:0x0071e3|label:A|${encodeURIComponent(locationA)}`,
+        // Location B marker (blue)
+        `markers=color:0x0071e3|label:B|${encodeURIComponent(locationB)}`,
+    ];
+
+    // Add venue marker if location exists (red marker)
+    if (venue.location) {
+        markers.push(`markers=color:0xDC2626|${venue.location.lat},${venue.location.lng}`);
+    }
+
+    // Construct the URL with all markers
+    const baseUrl = 'https://maps.googleapis.com/maps/api/staticmap?';
+    const params = new URLSearchParams({
+        size: '400x400',
+        scale: '2',
+        zoom: '12',
+        key: apiKey || '',
+        style: 'feature:all|element:labels|visibility:on',
+        style: 'feature:all|element:geometry|color:0x242f3e',
+        style: 'feature:road|element:geometry|color:0x38414e',
+        style: 'feature:water|element:geometry|color:0x17263c'
+    });
+
+    return `${baseUrl}${params.toString()}&${markers.join('&')}`;
+}

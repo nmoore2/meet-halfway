@@ -19,17 +19,13 @@ export default function Home() {
     const [currentSearch, setCurrentSearch] = useState<{
         locationA: string;
         locationB: string;
+        meetupType?: string;
     } | null>(null);
 
     const handleSearch = async (searchData: any) => {
         try {
             setIsLoading(true);
-            setCurrentSearch({
-                locationA: searchData.locationA,
-                locationB: searchData.locationB
-            });
-
-            console.log('Sending search request with data:', searchData);
+            setSearchResult(null);
 
             const response = await fetch('/api/search', {
                 method: 'POST',
@@ -40,29 +36,22 @@ export default function Home() {
             });
 
             const data = await response.json();
-            console.log('Received response:', data);
 
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to get recommendations');
-            }
-
-            if (!data.success) {
-                throw new Error(data.message || 'No recommendations found');
+                return {
+                    error: data.error || "We couldn't find any spots matching your criteria. Try adjusting your search or selecting different locations."
+                };
             }
 
             setSearchResult(data);
             setToastMessage('Found some great meeting spots!');
             setShowToast(true);
             setTimeout(() => setShowToast(false), 3000);
-        } catch (error: any) {
-            console.error('Search error:', {
-                message: error.message,
-                stack: error.stack
-            });
-            setToastMessage(error.message || 'An error occurred while searching');
-            setShowToast(true);
-            setTimeout(() => setShowToast(false), 3000);
-            setSearchResult(null);
+            return data;
+        } catch (error) {
+            return {
+                error: "We couldn't find any spots matching your criteria. Try adjusting your search or selecting different locations."
+            };
         } finally {
             setIsLoading(false);
         }
@@ -74,14 +63,13 @@ export default function Home() {
                 <h1 className="text-4xl font-bold text-center mb-8">Meet Halfway</h1>
                 {showToast && <Toast message={toastMessage} />}
                 <SearchForm onSubmit={handleSearch} isLoading={isLoading} />
-                {searchResult && currentSearch && (
-                    <Recommendations
-                        results={searchResult}
-                        locationA={currentSearch.locationA}
-                        locationB={currentSearch.locationB}
-                        isLoading={isLoading}
-                    />
-                )}
+                <Recommendations
+                    results={searchResult}
+                    locationA={currentSearch?.locationA}
+                    locationB={currentSearch?.locationB}
+                    isLoading={isLoading}
+                    meetupType={currentSearch?.meetupType}
+                />
             </div>
         </main>
     );

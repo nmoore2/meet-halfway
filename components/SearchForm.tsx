@@ -3,42 +3,57 @@ import PlaceAutocomplete from './PlaceAutocomplete';
 
 interface SearchFormProps {
     onSubmit: (searchData: {
-        locationA: string;
-        locationB: string;
+        location1: string;
+        location2: string;
         activityType: string;
-        locationType: string;
-        vibe: string;
-    }) => void;
+        meetupType: string;
+        priceRange: string;
+    }) => Promise<{ error?: string }>;
     isLoading?: boolean;
 }
 
 export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     const [formData, setFormData] = useState({
-        locationA: "Sloan's Lake, Denver, CO",
-        locationB: 'Cherry Creek, Denver, CO',
+        location1: 'Denver, CO, USA',
+        location2: 'Boulder, CO, USA',
         activityType: 'Cocktails',
-        locationType: 'Any Location Type',
-        vibe: 'First Date',
+        meetupType: 'First Date',
         priceRange: 'any'
     });
 
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const [locationType, setLocationType] = useState('cocktails');
-    const [vibe, setVibe] = useState('first-date');
-    const [priceRange, setPriceRange] = useState('any');
+    const [validationError, setValidationError] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setValidationError(null);
+
+        // Check if both locations are filled
+        if (!formData.location1 || !formData.location2) {
+            setValidationError('Please enter both locations to find meeting spots');
+            return;
+        }
+
         try {
-            console.log('Form submitted with data:', formData);
-            await onSubmit(formData);
-        } catch (error: any) {
-            console.error('Form submission error:', {
-                message: error.message,
-                stack: error.stack,
-                data: error
+            const response = await onSubmit({
+                location1: formData.location1,
+                location2: formData.location2,
+                activityType: formData.activityType,
+                meetupType: formData.meetupType,
+                priceRange: formData.priceRange
             });
+
+            if (response?.error) {
+                setValidationError(response.error);
+                return;
+            }
+
+        } catch (error) {
+            const errorMessage = error instanceof Error
+                ? error.message
+                : "We couldn't find any spots matching your criteria. Try adjusting your search or selecting different locations.";
+
+            setValidationError(errorMessage);
+            console.error('Form submission error:', error);
         }
     };
 
@@ -53,12 +68,11 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     `;
 
     const activityTypes = [
+        { value: 'Cocktails', label: 'Cocktails' },
+        { value: 'Bar', label: 'Bar' },
         { value: 'Coffee Shop', label: 'Coffee Shop' },
         { value: 'Restaurant', label: 'Restaurant' },
-        { value: 'Bar', label: 'Bar' },
-        { value: 'Cocktails', label: 'Cocktails' },
-        { value: 'Park', label: 'Park' },
-        { value: 'Museum', label: 'Museum' }
+        { value: 'Park', label: 'Park' }
     ];
 
     // Get price range options based on activity type
@@ -75,8 +89,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
             { value: 'any', label: 'Any Price' },
             { value: '$', label: '$' },
             { value: '$$', label: '$$' },
-            { value: '$$$', label: '$$$' },
-            { value: '$$$$', label: '$$$$' }
+            { value: '$$$', label: '$$$' }
         ];
     };
 
@@ -134,25 +147,36 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
 
     const handleSelect = (address: string) => {
         // Update the input value
-        setFormData(prev => ({ ...prev, locationA: address }));
+        setFormData(prev => ({ ...prev, location1: address }));
 
         // Any additional logic you need when an address is selected
         // For example, storing in state or form data
     };
 
+    // Add key press handler for the form
+    const handleKeyPress = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSubmit(e as any);
+        }
+    };
+
     return (
-        <form onSubmit={handleSubmit} className="space-y-8 relative">
+        <form
+            onSubmit={handleSubmit}
+            onKeyDown={handleKeyPress}
+            className="relative space-y-8"
+        >
             {/* Location inputs - side by side */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 relative z-20">
                 <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                         First Location
                     </label>
-                    {/* First location input */}
                     <div className="max-w-full">
                         <PlaceAutocomplete
-                            value={formData.locationA}
-                            onChange={(value) => setFormData(prev => ({ ...prev, locationA: value }))}
+                            value={formData.location1}
+                            onChange={(value) => setFormData(prev => ({ ...prev, location1: value }))}
                             placeholder="Enter first location"
                             disabled={isLoading}
                             styles={customStyles}
@@ -165,14 +189,14 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                         Second Location
                     </label>
-                    {/* Second location input */}
                     <div className="max-w-full">
                         <PlaceAutocomplete
-                            value={formData.locationB}
-                            onChange={(value) => setFormData(prev => ({ ...prev, locationB: value }))}
+                            value={formData.location2}
+                            onChange={(value) => setFormData(prev => ({ ...prev, location2: value }))}
                             placeholder="Enter second location"
                             disabled={isLoading}
                             styles={customStyles}
+                            onKeyDown={handleKeyPress}
                         />
                     </div>
                 </div>
@@ -212,8 +236,8 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                     </label>
                     <div className="relative">
                         <select
-                            value={formData.vibe}
-                            onChange={(e) => setFormData(prev => ({ ...prev, vibe: e.target.value }))}
+                            value={formData.meetupType}
+                            onChange={(e) => setFormData(prev => ({ ...prev, meetupType: e.target.value }))}
                             className="w-full p-3 pr-10 bg-[#2A2A2A] text-white rounded-lg border border-[#333333] appearance-none cursor-pointer focus:outline-none focus:border-[#444444]"
                         >
                             {vibes.map((vibe) => (
@@ -256,20 +280,25 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                 </div>
             </div>
 
-            {/* Full width submit button */}
+            {validationError && (
+                <div className="bg-[#FF3B30]/10 border border-[#FF3B30]/20 rounded-lg p-4 flex items-center gap-3">
+                    <svg className="w-5 h-5 text-[#FF3B30] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-[#FF3B30] text-sm">
+                        {validationError}
+                    </p>
+                </div>
+            )}
+
             <button
                 type="submit"
-                className="w-full p-3 rounded-lg font-medium bg-[#0071e3] hover:bg-[#0077ED] text-white"
+                className="w-full bg-[#0071e3] text-white rounded-lg py-3 px-4 hover:bg-[#0077ED] transition-colors"
+                disabled={isLoading}
             >
                 Find Places
             </button>
-
-            {/* Loading spinner - position it behind the inputs */}
-            {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                </div>
-            )}
         </form>
     );
 }

@@ -2,22 +2,46 @@ import { NextResponse } from 'next/server';
 import { getRecommendedVenues } from '../../../lib/openai';
 import { getPlaceDetails } from '../../../lib/google-places';
 import { getDriveTimes } from '../../../lib/maps';
+import { parseVenues } from '../../../lib/parser';
 
 export async function POST(request: Request) {
     const startTime = performance.now();
 
     try {
-        const searchData = await request.json();
-        const { activityType, meetupType, priceRange, locationA, locationB } = searchData;
+        const data = await request.json();
+
+        // Validate required fields
+        if (!data.location1 || !data.location2) {
+            return NextResponse.json({
+                error: 'Please enter both locations to find meeting spots.',
+                suggestions: []
+            }, { status: 400 });
+        }
 
         console.log('Starting venue recommendations...');
-        const chatResponse = await getRecommendedVenues(activityType, meetupType, priceRange);
-        console.log(`OpenAI response time: ${performance.now() - startTime}ms`);
+        const openAIResponse = await getRecommendedVenues(
+            data.activityType,
+            data.meetupType,
+            data.priceRange,
+            data.location1,
+            data.location2
+        );
 
-        const venues = Array.isArray(chatResponse) ? chatResponse : parseVenueRecommendations(chatResponse);
+        // Add logging to debug the response
+        console.log('OpenAI Response:', openAIResponse);
+
+        // Parse the OpenAI response
+        const venues = parseVenues(openAIResponse);
+
+        // Add logging to debug the parsed venues
+        console.log('Parsed Venues:', venues);
 
         if (!venues || venues.length === 0) {
-            throw new Error('No valid venues found');
+            console.log('No venues found after parsing');
+            return NextResponse.json({
+                error: "We couldn't find any spots matching your search. Please try again.",
+                suggestions: []
+            }, { status: 400 });
         }
 
         // Process all venues in parallel
@@ -42,8 +66,8 @@ export async function POST(request: Request) {
                     }
                 })
             ),
-            getDriveTimes(locationA, venues.map(v => v.address)),
-            getDriveTimes(locationB, venues.map(v => v.address))
+            getDriveTimes(data.location1, venues.map(v => v.address)),
+            getDriveTimes(data.location2, venues.map(v => v.address))
         ]);
 
         // Combine all the data
@@ -63,33 +87,11 @@ export async function POST(request: Request) {
             suggestions: finalVenues
         });
 
-    } catch (error: any) {
+    } catch (error) {
         console.error('Search API error:', error);
         return NextResponse.json({
-            success: false,
-            message: error.message || 'Failed to find meeting spots'
+            error: "Something went wrong while finding meeting spots. Please try again.",
+            suggestions: []
         }, { status: 500 });
-    }
-}
-
-function parseVenueRecommendations(text: string) {
-    try {
-        const venues = [];
-        const venueRegex = /(\d+)\.\s*•\s*Name:\s*([^•]+)•\s*Address:\s*([^•]+)•\s*Best for:\s*([^•]+)•\s*Why:\s*([^•\n]+)/g;
-
-        let match;
-        while ((match = venueRegex.exec(text)) !== null) {
-            venues.push({
-                name: match[2].trim(),
-                address: match[3].trim(),
-                bestFor: match[4].trim(),
-                why: match[5].trim()
-            });
-        }
-
-        return venues;
-    } catch (error) {
-        console.error('Error parsing venue recommendations:', error);
-        return [];
     }
 }
