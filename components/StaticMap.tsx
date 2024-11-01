@@ -20,7 +20,6 @@ const StaticMap = ({ venue, locationA, locationB }: StaticMapProps) => {
         if (!MAPBOX_ACCESS_TOKEN) return null;
 
         try {
-            // Geocode both locations
             const geocodeUrl = (address: string) =>
                 `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_ACCESS_TOKEN}`;
 
@@ -37,19 +36,16 @@ const StaticMap = ({ venue, locationA, locationB }: StaticMapProps) => {
             const locationBCoords = locB.features[0].center;
             const venueCoords = [venue.location.lng, venue.location.lat];
 
-            // Calculate center point
             const centerLng = (locationACoords[0] + locationBCoords[0] + venueCoords[0]) / 3;
             const centerLat = (locationACoords[1] + locationBCoords[1] + venueCoords[1]) / 3;
 
-            // Create markers string
             const markers = [
                 `pin-s-a+0071e3(${locationACoords[0]},${locationACoords[1]})`,
                 `pin-s-b+0071e3(${locationBCoords[0]},${locationBCoords[1]})`,
                 `pin-s-star+4CAF50(${venueCoords[0]},${venueCoords[1]})`
             ].join(',');
 
-            // Use auto zoom with center point instead of bounds
-            return `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markers}/${centerLng},${centerLat},9/600x300@2x?access_token=${MAPBOX_ACCESS_TOKEN}`;
+            return `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markers}/${centerLng},${centerLat},7.5/600x300@2x?access_token=${MAPBOX_ACCESS_TOKEN}`;
 
         } catch (error) {
             console.error('Error generating map URL:', error);

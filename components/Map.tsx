@@ -76,15 +76,35 @@ const Map = ({ suggestion, locationA, locationB, mapId }: MapProps) => {
                 new google.maps.Marker({
                     position: locA,
                     map,
-                    label: 'A',
-                    title: 'Location A'
+                    label: {
+                        text: 'A',
+                        color: '#FFFFFF'
+                    },
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: '#0071e3',
+                        fillOpacity: 1,
+                        strokeWeight: 2,
+                        strokeColor: '#FFFFFF',
+                    }
                 });
 
                 new google.maps.Marker({
                     position: locB,
                     map,
-                    label: 'B',
-                    title: 'Location B'
+                    label: {
+                        text: 'B',
+                        color: '#FFFFFF'
+                    },
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: '#0071e3',
+                        fillOpacity: 1,
+                        strokeWeight: 2,
+                        strokeColor: '#FFFFFF',
+                    }
                 });
 
                 new google.maps.Marker({
@@ -92,7 +112,7 @@ const Map = ({ suggestion, locationA, locationB, mapId }: MapProps) => {
                     map,
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
-                        scale: 8,
+                        scale: 10,
                         fillColor: '#4CAF50',
                         fillOpacity: 1,
                         strokeWeight: 2,

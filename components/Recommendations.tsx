@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import PhotoCarousel from './PhotoCarousel';
 import LoadingState from './LoadingState';
+import StaticMap from './StaticMap';
 
 interface DriveTime {
     fromA: string;
@@ -168,7 +169,29 @@ const formatDriveTime = (driveTimes: DriveTime, locationA: string, locationB: st
 
 export default function Recommendations({ results, locationA, locationB, isLoading, meetupType = 'meetup' }: RecommendationsProps) {
     if (isLoading) {
-        return <LoadingState activityType={results?.suggestions[0]?.bestFor || ''} />;
+        return (
+            <div className="mt-12 space-y-12">
+                {[1, 2, 3].map((i) => (
+                    <div key={i} className="bg-[#1A1A1A] rounded-xl p-6 border border-[#333333] animate-pulse">
+                        <div className="flex flex-col lg:flex-row gap-6">
+                            <div className="lg:w-1/2">
+                                <div className="h-8 w-2/3 bg-[#2A2A2A] rounded mb-4"></div>
+                                <div className="h-4 w-1/3 bg-[#2A2A2A] rounded mb-4"></div>
+                                <div className="space-y-2">
+                                    <div className="h-4 w-full bg-[#2A2A2A] rounded"></div>
+                                    <div className="h-4 w-full bg-[#2A2A2A] rounded"></div>
+                                    <div className="h-4 w-3/4 bg-[#2A2A2A] rounded"></div>
+                                </div>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-6 lg:w-1/2">
+                                <div className="sm:w-3/5 h-[250px] bg-[#2A2A2A] rounded-lg"></div>
+                                <div className="sm:w-2/5 h-[250px] bg-[#2A2A2A] rounded-lg"></div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
     }
 
     // Handle error state
@@ -193,9 +216,7 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
 
     return (
         <div className="mt-12">
-            {isLoading ? (
-                <LoadingState activityType={results?.suggestions[0]?.bestFor || ''} />
-            ) : results?.suggestions && results.suggestions.length > 0 ? (
+            {results?.suggestions && results.suggestions.length > 0 ? (
                 <>
                     <h2 className="text-2xl font-bold mb-8">
                         Here Are the Best Spots to Meet for a {meetupType}
@@ -253,13 +274,11 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
 
                                         {/* Map container - increased right padding */}
                                         <div className="sm:w-2/5 flex-shrink-0 pr-6">
-                                            <div className="h-[250px] rounded-lg overflow-hidden">
-                                                <VenueMap
-                                                    locationA={locationA}
-                                                    locationB={locationB}
-                                                    venue={suggestion}
-                                                />
-                                            </div>
+                                            <StaticMap
+                                                venue={suggestion}
+                                                locationA={locationA || ''}
+                                                locationB={locationB || ''}
+                                            />
                                         </div>
                                     </div>
                                 </div>

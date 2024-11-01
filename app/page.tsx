@@ -4,6 +4,7 @@ import { useState } from 'react';
 import SearchForm from '../components/SearchForm';
 import Recommendations from '../components/Recommendations';
 import { Toast } from '../components/Toast';
+import LoadingState from '../components/LoadingState';
 
 interface SearchResult {
     success: boolean;
@@ -69,6 +70,7 @@ export default function Home() {
                 <h1 className="text-4xl font-bold text-center mb-8">Meet Halfway</h1>
                 {showToast && <Toast message={toastMessage} />}
                 <SearchForm onSubmit={handleSearch} isLoading={isLoading} />
+                {isLoading && <LoadingState vibe={currentSearch?.meetupType} />}
                 <Recommendations
                     results={searchResult}
                     locationA={currentSearch?.locationA}
