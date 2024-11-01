@@ -23,18 +23,10 @@ export default function LoadingState({ activityType }: { activityType: string })
     };
 
     const messages = [
-        {
-            title: `Searching for ${getActivityMessage(activityType)}...`,
-            id: 0
-        },
-        {
-            title: 'Finding the perfect meeting spot...',
-            id: 1
-        },
-        {
-            title: 'Saving you lots of time... :)',
-            id: 2
-        }
+        'Finding the perfect spots...',
+        'Calculating drive times...',
+        'Checking venue details...',
+        'Almost done...'
     ];
 
     useEffect(() => {
@@ -46,29 +38,34 @@ export default function LoadingState({ activityType }: { activityType: string })
             setCurrentMessage(2);
         }, 10000);
 
+        const timer3 = setTimeout(() => {
+            setCurrentMessage(3);
+        }, 15000);
+
         return () => {
             clearTimeout(timer1);
             clearTimeout(timer2);
+            clearTimeout(timer3);
         };
     }, []);
 
     return (
         <div className="min-h-[200px] flex flex-col items-center justify-center p-8">
             <div className="relative h-20 w-full max-w-2xl text-center">
-                {messages.map((message) => (
+                {messages.map((message, index) => (
                     <div
-                        key={message.id}
+                        key={index}
                         className={`
                             absolute top-0 left-0 w-full
                             transition-opacity duration-700 ease-in-out
-                            ${currentMessage === message.id
+                            ${currentMessage === index
                                 ? 'opacity-100'
                                 : 'opacity-0'
                             }
                         `}
                     >
                         <h2 className="text-2xl font-semibold whitespace-normal">
-                            {message.title}
+                            {message}
                         </h2>
                     </div>
                 ))}
