@@ -267,9 +267,13 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
                                     {suggestion.price_level !== undefined && getPriceDisplay(suggestion.price_level)}
                                 </div>
 
-                                <div className="mb-3">
-                                    <div className="text-sky-400 font-medium mb-2">Best for: {suggestion.bestFor}</div>
-                                    <p className="text-gray-300">{suggestion.why}</p>
+                                {/* Description section */}
+                                <div className="text-gray-300 mb-4">
+                                    <div className="text-[#0071e3] font-medium mb-2">Best for: {suggestion.bestFor}</div>
+                                    <div>
+                                        <span className="font-medium">Why: </span>
+                                        {suggestion.why}
+                                    </div>
                                 </div>
 
                                 <div className="text-sm text-gray-400 flex items-center">

@@ -24,6 +24,10 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const [locationType, setLocationType] = useState('cocktails');
+    const [vibe, setVibe] = useState('first-date');
+    const [priceRange, setPriceRange] = useState('any');
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -176,25 +180,23 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
 
             {/* Filters in one row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-8">
+                {/* Location Type */}
                 <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                         Location Type
                     </label>
                     <div className="relative">
                         <select
-                            className="
-                                w-full p-3 pr-10 
-                                bg-[#2A2A2A] text-white 
-                                rounded-lg border border-[#333333] 
-                                appearance-none 
-                                cursor-pointer
-                                focus:outline-none focus:border-[#444444]
-                            "
+                            value={formData.activityType}
+                            onChange={(e) => setFormData(prev => ({ ...prev, activityType: e.target.value }))}
+                            className="w-full p-3 pr-10 bg-[#2A2A2A] text-white rounded-lg border border-[#333333] appearance-none cursor-pointer focus:outline-none focus:border-[#444444]"
                         >
-                            <option>Cocktails</option>
-                            {/* other options */}
+                            {activityTypes.map((type) => (
+                                <option key={type.value} value={type.value}>
+                                    {type.label}
+                                </option>
+                            ))}
                         </select>
-                        {/* Dropdown arrow */}
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -203,23 +205,22 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                     </div>
                 </div>
 
+                {/* Vibe */}
                 <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                         Vibe
                     </label>
                     <div className="relative">
                         <select
-                            className="
-                                w-full p-3 pr-10 
-                                bg-[#2A2A2A] text-white 
-                                rounded-lg border border-[#333333] 
-                                appearance-none 
-                                cursor-pointer
-                                focus:outline-none focus:border-[#444444]
-                            "
+                            value={formData.vibe}
+                            onChange={(e) => setFormData(prev => ({ ...prev, vibe: e.target.value }))}
+                            className="w-full p-3 pr-10 bg-[#2A2A2A] text-white rounded-lg border border-[#333333] appearance-none cursor-pointer focus:outline-none focus:border-[#444444]"
                         >
-                            <option>First Date</option>
-                            {/* other options */}
+                            {vibes.map((vibe) => (
+                                <option key={vibe.value} value={vibe.value}>
+                                    {vibe.label}
+                                </option>
+                            ))}
                         </select>
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -229,23 +230,22 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                     </div>
                 </div>
 
+                {/* Price Range */}
                 <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                         Price Range
                     </label>
                     <div className="relative">
                         <select
-                            className="
-                                w-full p-3 pr-10 
-                                bg-[#2A2A2A] text-white 
-                                rounded-lg border border-[#333333] 
-                                appearance-none 
-                                cursor-pointer
-                                focus:outline-none focus:border-[#444444]
-                            "
+                            value={formData.priceRange}
+                            onChange={(e) => setFormData(prev => ({ ...prev, priceRange: e.target.value }))}
+                            className="w-full p-3 pr-10 bg-[#2A2A2A] text-white rounded-lg border border-[#333333] appearance-none cursor-pointer focus:outline-none focus:border-[#444444]"
                         >
-                            <option>Any Price</option>
-                            {/* other options */}
+                            {getPriceRangeOptions().map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
                         </select>
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
