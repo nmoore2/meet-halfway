@@ -32,23 +32,24 @@ const StaticMap = ({ venue, locationA, locationB }: StaticMapProps) => {
 
     if (!mapUrl) {
         return (
-            <div className="h-[300px] rounded-lg bg-gray-800 flex items-center justify-center">
+            <div className="h-[250px] rounded-lg bg-gray-800 flex items-center justify-center">
                 <span className="text-gray-400">Map unavailable</span>
             </div>
         );
     }
 
     return (
-        <div className="h-[300px] rounded-lg overflow-hidden">
+        <div className="h-[250px] rounded-lg overflow-hidden bg-gray-800">
             <img
                 src={mapUrl}
                 alt={`Map showing ${venue.name} location`}
                 className="w-full h-full object-cover"
+                style={{ objectPosition: 'center' }}
                 loading="lazy"
                 onError={(e) => {
                     console.error('Map image failed to load. URL:', mapUrl);
                     e.currentTarget.parentElement!.innerHTML = `
-                        <div class="h-[300px] rounded-lg bg-gray-800 flex items-center justify-center">
+                        <div class="h-[250px] rounded-lg bg-gray-800 flex items-center justify-center">
                             <span class="text-gray-400">Map unavailable</span>
                         </div>
                     `;
