@@ -1,53 +1,84 @@
+import React, { useState, useEffect, useRef } from 'react';
+
+interface StaticMapProps {
+    venue: {
+        name: string;
+        location?: {
+            lat: number;
+            lng: number;
+        };
+    };
+    locationA: string;
+    locationB: string;
+}
+
 const StaticMap = ({ venue, locationA, locationB }: StaticMapProps) => {
-    const getStaticMapUrl = () => {
-        if (!venue.location) {
-            console.log('No venue location provided');
-            return null;
-        }
+    const getStaticMapUrl = async () => {
+        if (!venue.location) return null;
 
         const MAPBOX_ACCESS_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-        if (!MAPBOX_ACCESS_TOKEN) {
-            console.error('Mapbox token not found');
+        if (!MAPBOX_ACCESS_TOKEN) return null;
+
+        try {
+            // Geocode both locations
+            const geocodeUrl = (address: string) =>
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_ACCESS_TOKEN}`;
+
+            const [locA, locB] = await Promise.all([
+                fetch(geocodeUrl(locationA)).then(res => res.json()),
+                fetch(geocodeUrl(locationB)).then(res => res.json())
+            ]);
+
+            if (!locA.features?.[0] || !locB.features?.[0]) {
+                throw new Error('Failed to geocode locations');
+            }
+
+            const locationACoords = locA.features[0].center;
+            const locationBCoords = locB.features[0].center;
+            const venueCoords = [venue.location.lng, venue.location.lat];
+
+            // Calculate center point
+            const centerLng = (locationACoords[0] + locationBCoords[0] + venueCoords[0]) / 3;
+            const centerLat = (locationACoords[1] + locationBCoords[1] + venueCoords[1]) / 3;
+
+            // Create markers string
+            const markers = [
+                `pin-s-a+0071e3(${locationACoords[0]},${locationACoords[1]})`,
+                `pin-s-b+0071e3(${locationBCoords[0]},${locationBCoords[1]})`,
+                `pin-s-star+4CAF50(${venueCoords[0]},${venueCoords[1]})`
+            ].join(',');
+
+            // Use auto zoom with center point instead of bounds
+            return `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markers}/${centerLng},${centerLat},9/600x300@2x?access_token=${MAPBOX_ACCESS_TOKEN}`;
+
+        } catch (error) {
+            console.error('Error generating map URL:', error);
             return null;
         }
-
-        // Create markers for all three locations
-        const markers = [
-            // Venue marker (green)
-            `pin-s-star+4CAF50(${venue.location.lng},${venue.location.lat})`,
-            // Location A marker (blue)
-            `pin-s-a+0071e3(-104.9903,39.7392)`,  // Denver coordinates
-            // Location B marker (blue)
-            `pin-s-b+0071e3(-105.2705,40.0150)`   // Boulder coordinates
-        ].join(',');
-
-        // Use bounds to show all markers
-        const url = `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${markers}/[-105.2705,39.7392,-104.9903,40.0150]/300x200?padding=50&access_token=${MAPBOX_ACCESS_TOKEN}`;
-
-        console.log('Generated map URL:', url);
-        return url;
     };
 
-    const mapUrl = getStaticMapUrl();
+    useEffect(() => {
+        const loadMap = async () => {
+            const url = await getStaticMapUrl();
+            if (url && imgRef.current) {
+                imgRef.current.src = url;
+            }
+        };
+        loadMap();
+    }, [venue, locationA, locationB]);
 
-    if (!mapUrl) {
-        return (
-            <div className="h-[250px] rounded-lg bg-gray-800 flex items-center justify-center">
-                <span className="text-gray-400">Map unavailable</span>
-            </div>
-        );
-    }
+    const imgRef = useRef<HTMLImageElement>(null);
 
     return (
         <div className="h-[250px] rounded-lg overflow-hidden bg-gray-800">
             <img
-                src={mapUrl}
+                ref={imgRef}
                 alt={`Map showing ${venue.name} location`}
                 className="w-full h-full object-cover"
                 style={{ objectPosition: 'center' }}
                 loading="lazy"
                 onError={(e) => {
-                    console.error('Map image failed to load. URL:', mapUrl);
+                    console.error('Map image failed to load. URL:', e.currentTarget.src);
                     e.currentTarget.parentElement!.innerHTML = `
                         <div class="h-[250px] rounded-lg bg-gray-800 flex items-center justify-center">
                             <span class="text-gray-400">Map unavailable</span>
