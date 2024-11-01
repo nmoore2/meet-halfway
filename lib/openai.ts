@@ -6,7 +6,7 @@ const openai = new OpenAI({
 
 // Add request caching
 const responseCache = new Map<string, { timestamp: number; data: string }>();
-const CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours
+const CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hour
 
 export async function getRecommendedVenues(activityType: string, meetupType: string, priceRange: string) {
     try {

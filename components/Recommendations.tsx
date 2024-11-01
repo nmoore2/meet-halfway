@@ -320,4 +320,4 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
             </div>
         </div>
     );
-}
+}  
