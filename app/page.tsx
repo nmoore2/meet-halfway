@@ -27,6 +27,12 @@ export default function Home() {
             setIsLoading(true);
             setSearchResult(null);
 
+            setCurrentSearch({
+                locationA: searchData.location1,
+                locationB: searchData.location2,
+                meetupType: searchData.meetupType
+            });
+
             const response = await fetch('/api/search', {
                 method: 'POST',
                 headers: {
