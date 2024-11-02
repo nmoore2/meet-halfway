@@ -108,6 +108,43 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
         { value: 'Hangout', label: 'Hangout' }
     ];
 
+    // First, create a custom styles object for the Google Places Autocomplete
+    const customStyles = {
+        input: {
+            width: '100%',
+            padding: '0.75rem',
+            backgroundColor: '#2A2A2A',
+            color: 'white',
+            borderRadius: '0.5rem',
+            border: '1px solid #333333',
+        },
+        autocompleteContainer: {
+            // Container that holds the entire autocomplete component
+            width: '100%',
+        },
+        autocompleteItem: {
+            // Individual suggestion items
+            backgroundColor: '#1A1A1A',
+            color: '#FFFFFF',
+            padding: '10px',
+            cursor: 'pointer',
+            borderBottom: '1px solid #333333',
+        },
+        autocompleteItemActive: {
+            // Highlighted/selected item
+            backgroundColor: '#2A2A2A',
+        },
+        suggestionsList: {
+            // The list container
+            backgroundColor: '#1A1A1A',
+            border: '1px solid #333333',
+            borderRadius: '0.5rem',
+            marginTop: '0.5rem',
+            padding: 0,
+            listStyle: 'none',
+        }
+    };
+
     const handleSelect = (address: string) => {
         // Update the input value
         setFormData(prev => ({ ...prev, location1: address }));
@@ -142,6 +179,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                             onChange={(value) => setFormData(prev => ({ ...prev, location1: value }))}
                             placeholder="Enter first location"
                             disabled={isLoading}
+                            styles={customStyles}
                             onSelect={handleSelect}
                         />
                     </div>
@@ -157,6 +195,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                             onChange={(value) => setFormData(prev => ({ ...prev, location2: value }))}
                             placeholder="Enter second location"
                             disabled={isLoading}
+                            styles={customStyles}
                             onKeyDown={handleKeyPress}
                         />
                     </div>

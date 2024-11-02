@@ -5,8 +5,6 @@ const openai = new OpenAI({
 });
 
 // Add request caching
-const responseCache = new Map<string, { timestamp: number; data: string }>();
-const CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hour
 
 export async function getRecommendedVenues(
     activityType: string,
@@ -63,13 +61,3 @@ export async function getRecommendedVenues(
 }
 
 
-function getPriceGuidance(priceRange: string): string {
-    const priceGuides = {
-        '$': 'ONLY suggest places with cocktails $8-12.',
-        '$$': 'ONLY suggest places with cocktails $12-15.',
-        '$$$': 'ONLY suggest places with cocktails $15-20.',
-        'any': 'Include various price points.'
-    };
-
-    return priceGuides[priceRange as keyof typeof priceGuides] || priceGuides.any;
-}
