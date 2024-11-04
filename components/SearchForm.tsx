@@ -104,8 +104,8 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     const vibes = [
         { value: 'First Date', label: 'First Date' },
         { value: 'Date', label: 'Date' },
-        { value: 'Business', label: 'Business' },
-        { value: 'Hangout', label: 'Hangout' }
+        { value: 'Business Meeting', label: 'Business Meeting' },
+        { value: 'Fun/Unique', label: 'Fun/Unique' }
     ];
 
     // First, create a custom styles object for the Google Places Autocomplete

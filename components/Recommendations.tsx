@@ -18,6 +18,7 @@ interface RecommendationsProps {
             address: string;
             bestFor: string;
             why: string;
+            type?: string;
             photos?: string[];
             price_level?: number;
             location?: {
@@ -25,12 +26,14 @@ interface RecommendationsProps {
                 lng: number;
             };
             driveTimes?: DriveTime;
+            error?: string;
         }>;
     } | null;
     locationA?: string;
     locationB?: string;
     isLoading: boolean;
     meetupType?: string;
+    locationType?: string;
 }
 
 // [Keep getPriceDisplay exactly as is]
@@ -167,7 +170,7 @@ const formatDriveTime = (driveTimes: DriveTime, locationA: string, locationB: st
     );
 };
 
-export default function Recommendations({ results, locationA, locationB, isLoading, meetupType = 'meetup' }: RecommendationsProps) {
+export default function Recommendations({ results, locationA, locationB, isLoading, meetupType = 'meetup', locationType }: RecommendationsProps) {
     if (isLoading) {
         return (
             <div className="mt-12 space-y-12">
@@ -219,7 +222,7 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
             {results?.suggestions && results.suggestions.length > 0 ? (
                 <>
                     <h2 className="text-2xl font-bold mb-8">
-                        Here Are the Best Spots to Meet for a {meetupType}
+                        Here are the best {results.suggestions[0]?.type?.toLowerCase() || 'spots'} to meet for a {meetupType.toLowerCase()}
                     </h2>
                     <div className="space-y-12">
                         {results.suggestions.map((suggestion, index) => (
