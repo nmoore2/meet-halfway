@@ -14,8 +14,8 @@ interface SearchFormProps {
 
 export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     const [formData, setFormData] = useState({
-        location1: 'Denver, CO, USA',
-        location2: 'Boulder, CO, USA',
+        location1: 'West Hollywood, California, USA',
+        location2: 'Santa Monica, California, USA',
         activityType: 'Cocktails',
         meetupType: 'First Date',
         priceRange: 'any'

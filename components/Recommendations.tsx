@@ -28,6 +28,12 @@ interface RecommendationsProps {
             driveTimes?: DriveTime;
             error?: string;
         }>;
+        midpoint?: {
+            lat: number;
+            lng: number;
+            searchRadius: number;
+            routePolyline?: string;
+        };
     } | null;
     locationA?: string;
     locationB?: string;
@@ -281,6 +287,7 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
                                                 venue={suggestion}
                                                 locationA={locationA || ''}
                                                 locationB={locationB || ''}
+                                                midpoint={results.midpoint}
                                             />
                                         </div>
                                     </div>

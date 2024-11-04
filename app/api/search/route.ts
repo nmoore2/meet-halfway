@@ -3,6 +3,7 @@ import { getRecommendedVenues } from '../../../lib/openai';
 import { getPlaceDetails } from '../../../lib/google-places';
 import { getDriveTimes } from '../../../lib/maps';
 import { parseVenues } from '../../../lib/parser';
+import { calculateDrivingMidpoint } from '../../../lib/midpoint';
 
 export async function POST(request: Request) {
     const startTime = performance.now();
@@ -19,12 +20,18 @@ export async function POST(request: Request) {
         }
 
         console.log('Starting venue recommendations...');
+
+        // Calculate midpoint first
+        const midpoint = await calculateDrivingMidpoint(data.location1, data.location2);
+
+        // Get venue recommendations using the midpoint
         const openAIResponse = await getRecommendedVenues(
             data.activityType,
             data.meetupType,
             data.priceRange,
             data.location1,
-            data.location2
+            data.location2,
+            midpoint
         );
 
         // Add logging to debug the response
@@ -84,7 +91,8 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
             success: true,
-            suggestions: finalVenues
+            suggestions: finalVenues,
+            midpoint: midpoint
         });
 
     } catch (error) {

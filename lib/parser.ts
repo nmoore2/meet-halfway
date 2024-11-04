@@ -1,41 +1,48 @@
 interface Venue {
     name: string;
     address: string;
-    bestFor: string;
-    why: string;
-    travelContext?: string;
+    bestFor?: string;
+    why?: string;
 }
 
-export function parseVenues(response: string) {
-    try {
-        // Split the response into individual venue sections
-        const venues = response.split('Name:').slice(1);
+export function parseVenues(content: string): Venue[] {
+    if (!content) return [];
 
-        return venues.map(venue => {
-            // Extract venue details using regex and clean up any asterisks
-            const nameMatch = venue.match(/^(.*?)(?=Address:|$)/s);
-            const addressMatch = venue.match(/Address:\s*(.*?)(?=Best For:|$)/s);
-            const bestForMatch = venue.match(/Best For:\s*(.*?)(?=Why:|$)/s);
-            const whyMatch = venue.match(/Why:\s*(.*?)(?=$)/s);
+    const venues: Venue[] = [];
 
-            if (!nameMatch || !addressMatch || !bestForMatch || !whyMatch) {
-                console.log('Failed to parse venue:', venue);
-                return null;
-            }
+    // Split on numbered items (1., 2., etc)
+    const venueBlocks = content.split(/\d+\.\s+\*\*/).filter(block => block.trim());
 
-            // Clean up any asterisks from the text
-            const cleanText = (text: string) => text.replace(/\*/g, '').trim();
+    for (const block of venueBlocks) {
+        try {
+            // Extract name (between ** and **)
+            const nameMatch = block.match(/([^*]+)\*\*/);
+            if (!nameMatch) continue;
 
-            return {
-                name: cleanText(nameMatch[1]),
-                address: cleanText(addressMatch[1]),
-                bestFor: cleanText(bestForMatch[1]),
-                why: cleanText(whyMatch[1])
-            };
-        }).filter(venue => venue !== null);
-    } catch (error) {
-        console.error('Error parsing venues:', error);
-        console.log('Raw response:', response);
-        return [];
+            // Extract address (after "Address: " or between hyphens)
+            const addressMatch = block.match(/Address:\s*([^,]+,[^,]+,[^,]+(?:,[^,]+)?)|[-–]\s*Address:\s*([^,]+,[^,]+,[^,]+(?:,[^,]+)?)/);
+            if (!addressMatch) continue;
+
+            const name = nameMatch[1].trim();
+            const address = (addressMatch[1] || addressMatch[2]).trim();
+
+            // Extract description if available
+            const descriptionMatch = block.match(/Description:\s*([^.]+(?:\.[^.]+)*)/);
+            const why = descriptionMatch ? descriptionMatch[1].trim() : undefined;
+
+            venues.push({
+                name,
+                address,
+                why
+            });
+
+            console.log(`Successfully parsed venue: ${name}`);
+        } catch (error) {
+            console.error('Error parsing venue block:', error);
+            console.log('Block content:', block);
+            continue;
+        }
     }
+
+    return venues;
 } 

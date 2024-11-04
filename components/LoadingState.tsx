@@ -13,7 +13,7 @@ export default function LoadingState({ vibe = 'meetup' }: LoadingStateProps) {
             id: 0
         },
         {
-            title: 'Calculating drive times...',
+            title: 'Calculating travel times...',
             id: 1
         },
         {
