@@ -25,14 +25,24 @@ export async function calculateDrivingMidpoint(location1: string, location2: str
 
     // Find the step that contains the midpoint
     let distanceSoFar = 0;
+    let previousDistance = 0;  // Track the previous step's distance
     const halfDistance = totalDistance / 2;
 
     for (const step of steps) {
-        distanceSoFar += step.distance.value;
+        const stepDistance = step.distance.value;
+        distanceSoFar += stepDistance;
+
         if (distanceSoFar >= halfDistance) {
+            // Calculate how far along this step the midpoint should be
+            const fraction = (halfDistance - previousDistance) / stepDistance;
+
+            // Interpolate between start and end coordinates
+            const lat = step.start_location.lat + (step.end_location.lat - step.start_location.lat) * fraction;
+            const lng = step.start_location.lng + (step.end_location.lng - step.start_location.lng) * fraction;
+
             const midpoint = {
-                lat: step.end_location.lat,
-                lng: step.end_location.lng,
+                lat,
+                lng,
                 searchRadius: (totalDistance / 1609.34) * 0.15, // 15% of total distance in miles
                 totalDistance: totalDistance / 1609.34, // total distance in miles
                 routePolyline: directionsResponse.routes[0].overview_polyline.points
@@ -44,10 +54,15 @@ export async function calculateDrivingMidpoint(location1: string, location2: str
             console.log('Total Distance:', midpoint.totalDistance.toFixed(2), 'miles');
             console.log('Time-Based Midpoint:', midpoint);
             console.log('Search Radius:', midpoint.searchRadius.toFixed(2), 'miles');
+            console.log('\n🗺️ Google Maps Link:');
+            console.log(`https://www.google.com/maps?q=${midpoint.lat},${midpoint.lng}`);
+            console.log('\n🔍 Route Overview:');
+            console.log(`https://www.google.com/maps/dir/${encodeURIComponent(location1)}/${midpoint.lat},${midpoint.lng}/${encodeURIComponent(location2)}`);
             console.log('===========================================\n');
 
             return midpoint;
         }
+        previousDistance = distanceSoFar;
     }
 
     throw new Error('Could not calculate midpoint');
