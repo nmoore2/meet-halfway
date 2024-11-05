@@ -74,3 +74,57 @@ Return EXACTLY 5 venues in this EXACT format:
         throw error;
     }
 }
+
+export async function curateVenues(
+    venues: any[],
+    activityType: string,
+    meetupType: string,
+    location1: string,
+    location2: string
+) {
+    const prompt = `From the following list of ${venues.length} venues, select the 5-10 BEST options for a ${meetupType.toLowerCase()} at a ${activityType.toLowerCase()} establishment. These venues are all located between ${location1} and ${location2}.
+
+VENUE LIST:
+${venues.map((venue, index) => `
+${index + 1}. ${venue.name}
+   - Address: ${venue.vicinity}
+   - Rating: ${venue.rating} (${venue.user_ratings_total} reviews)
+   - Price Level: ${venue.price_level ? '$'.repeat(venue.price_level) : 'Not specified'}
+`).join('\n')}
+
+For each selected venue, provide:
+1. Why it's perfect for a ${meetupType.toLowerCase()}
+2. What makes it special or unique
+3. Best features or characteristics for this type of meetup
+
+Return ONLY the best 5-10 venues in this EXACT format:
+
+1. **[Venue Name from the list above]**
+   - Address: [use exact address provided]
+   - Best for: [one short phrase about what makes this spot ideal]
+   - Why: [2-3 sentences about the venue's atmosphere and what makes it special]
+   - Price Level: [use the price level from the data]
+
+2. **[Next Venue Name]**
+   [continue same format]`;
+
+    const requestObject = {
+        model: "gpt-4",
+        messages: [
+            {
+                role: "system",
+                content: "You are a local expert who excels at matching venues to specific meetup types. Focus on selecting venues that best match the meetup purpose and provide meaningful, specific descriptions about why each venue is a good fit."
+            },
+            {
+                role: "user",
+                content: prompt
+            }
+        ],
+        temperature: 0.7, // Slightly higher temperature for more creative descriptions
+        max_tokens: 1500
+    };
+
+    console.log('🤖 Asking ChatGPT to curate venues...');
+    const completion = await openai.chat.completions.create(requestObject);
+    return completion.choices[0].message.content || '';
+}

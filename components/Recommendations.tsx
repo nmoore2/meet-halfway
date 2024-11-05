@@ -5,29 +5,27 @@ import PhotoCarousel from './PhotoCarousel';
 import LoadingState from './LoadingState';
 import StaticMap from './StaticMap';
 
-interface DriveTime {
-    fromA: string;
-    fromB: string;
+interface Venue {
+    name: string;
+    address: string;
+    rating: number;
+    user_ratings_total: number;
+    price_level?: number;
+    photos?: string[];
+    location?: {
+        lat: number;
+        lng: number;
+    };
+    driveTimes?: {
+        fromA: string;  // From Google Distance Matrix API
+        fromB: string;  // From Google Distance Matrix API
+    };
 }
 
 interface RecommendationsProps {
     results: {
         success: boolean;
-        suggestions: Array<{
-            name: string;
-            address: string;
-            bestFor: string;
-            why: string;
-            type?: string;
-            photos?: string[];
-            price_level?: number;
-            location?: {
-                lat: number;
-                lng: number;
-            };
-            driveTimes?: DriveTime;
-            error?: string;
-        }>;
+        suggestions: Venue[];
         midpoint?: {
             lat: number;
             lng: number;
@@ -68,48 +66,6 @@ const getPriceDisplay = (price_level?: number) => {
                 Price level from Google
             </div>
         </span>
-    );
-};
-
-const DriveTimeDisplay = ({ driveTimes, locationA, locationB }: {
-    driveTimes?: DriveTime;
-    locationA: string;
-    locationB: string;
-}) => {
-    // Extract city name from full address
-    const getCityName = (location: string) => {
-        // Add null check
-        if (!location) return '';
-
-        // Split by comma and get first part (city/area name)
-        const parts = location.split(',');
-        return parts[0].trim();
-    };
-
-    if (!driveTimes) return null;
-
-    const locationAName = getCityName(locationA);
-    const locationBName = getCityName(locationB);
-
-    return (
-        <div className="text-sm text-gray-400 flex items-center">
-            <svg
-                className="w-5 h-5 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-            >
-                <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M5 17h14M7 9h10l2 4M5 13l2-4"
-                />
-            </svg>
-            <span>From {locationAName}: {driveTimes.fromA}</span>
-            <span className="mx-2 text-gray-600">•</span>
-            <span>From {locationBName}: {driveTimes.fromB}</span>
-        </div>
     );
 };
 
@@ -163,7 +119,7 @@ const VenueMap = ({ locationA, locationB, venue }: {
     );
 };
 
-const formatDriveTime = (driveTimes: DriveTime, locationA: string, locationB: string) => {
+const formatDriveTime = (driveTimes: { fromA: string; fromB: string }, locationA: string, locationB: string) => {
     const cityA = locationA?.split(',')[0] || 'Location A';
     const cityB = locationB?.split(',')[0] || 'Location B';
 
@@ -176,7 +132,7 @@ const formatDriveTime = (driveTimes: DriveTime, locationA: string, locationB: st
     );
 };
 
-export default function Recommendations({ results, locationA, locationB, isLoading, meetupType = 'meetup', locationType }: RecommendationsProps) {
+export default function Recommendations({ results, locationA, locationB, isLoading, meetupType = 'meetup' }: RecommendationsProps) {
     if (isLoading) {
         return (
             <div className="mt-12 space-y-12">
@@ -228,22 +184,23 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
             {results?.suggestions && results.suggestions.length > 0 ? (
                 <>
                     <h2 className="text-2xl font-bold mb-8">
-                        Here are the best {results.suggestions[0]?.type?.toLowerCase() || 'spots'} to meet for a {meetupType.toLowerCase()}
+                        Here are the best spots to meet for a {meetupType.toLowerCase()}
                     </h2>
                     <div className="space-y-12">
-                        {results.suggestions.map((suggestion, index) => (
+                        {results.suggestions.map((venue, index) => (
                             <div
                                 key={index}
-                                className="bg-[#1A1A1A] rounded-xl p-6 hover:bg-[#222222] transition-colors duration-200 border border-[#333333] overflow-hidden"
+                                className="bg-[#1A1A1A] rounded-xl p-6 hover:bg-[#222222] transition-colors duration-200 border border-[#333333]"
                             >
                                 <div className="flex flex-col lg:flex-row gap-6">
-                                    {/* Text content */}
-                                    <div className="lg:w-1/2 min-w-[300px]">
+                                    {/* Venue Info Section */}
+                                    <div className="lg:w-1/2">
                                         <div className="flex items-center gap-2 mb-4">
-                                            <h3 className="text-xl font-semibold text-white">{suggestion.name}</h3>
+                                            <h3 className="text-xl font-semibold text-white">{venue.name}</h3>
+                                            {/* Google Maps Link */}
                                             <a
                                                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                                                    suggestion.name + ' ' + suggestion.address
+                                                    venue.name + ' ' + venue.address
                                                 )}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
@@ -255,36 +212,56 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                                 </svg>
                                             </a>
-                                            {suggestion.price_level !== undefined && getPriceDisplay(suggestion.price_level)}
+                                            {venue.price_level !== undefined && getPriceDisplay(venue.price_level)}
                                         </div>
 
-                                        {/* Description section */}
+                                        {/* Rating */}
+                                        <div className="flex items-center gap-2 mb-4 text-sm text-gray-400">
+                                            <span className="flex items-center">
+                                                {venue.rating} ⭐
+                                            </span>
+                                            <span className="text-gray-600">•</span>
+                                            <span>{venue.user_ratings_total.toLocaleString()} reviews</span>
+                                        </div>
+
+                                        {/* Address */}
                                         <div className="text-gray-300 mb-4">
-                                            <div className="text-[#0071e3] font-medium mb-2">Best for: {suggestion.bestFor}</div>
-                                            <div>
-                                                <span className="font-medium">Why: </span>
-                                                {suggestion.why}
-                                            </div>
+                                            {venue.address}
                                         </div>
 
-                                        {suggestion.driveTimes && (
-                                            <div className="mt-2">
-                                                {formatDriveTime(suggestion.driveTimes, locationA, locationB)}
+                                        {/* Drive Times */}
+                                        {venue.driveTimes && (
+                                            <div className="flex items-center text-sm text-gray-400 mt-4">
+                                                <svg
+                                                    className="w-5 h-5 mr-2"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={1.5}
+                                                        d="M5 17h14M7 9h10l2 4M5 13l2-4"
+                                                    />
+                                                </svg>
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                                    <span>From {locationA?.split(',')[0]}: {venue.driveTimes.fromA}</span>
+                                                    <span className="hidden sm:inline text-gray-600 mx-2">•</span>
+                                                    <span>From {locationB?.split(',')[0]}: {venue.driveTimes.fromB}</span>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
 
-                                    {/* Media container */}
+                                    {/* Media Section */}
                                     <div className="flex flex-col sm:flex-row gap-6 lg:w-1/2">
-                                        {/* Photo carousel */}
-                                        <div className="sm:w-3/5 flex-shrink-0">
-                                            <PhotoCarousel photos={suggestion.photos || []} />
+                                        <div className="sm:w-3/5">
+                                            <PhotoCarousel photos={venue.photos || []} />
                                         </div>
-
-                                        {/* Map container - increased right padding */}
-                                        <div className="sm:w-2/5 flex-shrink-0 pr-6">
+                                        <div className="sm:w-2/5">
                                             <StaticMap
-                                                venue={suggestion}
+                                                venue={venue}
                                                 locationA={locationA || ''}
                                                 locationB={locationB || ''}
                                                 midpoint={results.midpoint}
