@@ -3,7 +3,8 @@ interface Midpoint {
     lng: number;
     searchRadius: number;
     totalDistance: number;
-    routePolyline?: string;
+    googleMapsUrl: string;
+    mapboxUrl: string;
 }
 
 export async function calculateDrivingMidpoint(location1: string, location2: string): Promise<Midpoint> {
@@ -27,15 +28,35 @@ export async function calculateDrivingMidpoint(location1: string, location2: str
     let distanceSoFar = 0;
     const halfDistance = totalDistance / 2;
 
-    for (const step of steps) {
-        distanceSoFar += step.distance.value;
-        if (distanceSoFar >= halfDistance) {
+    for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const stepDistance = step.distance.value;
+
+        if (distanceSoFar + stepDistance >= halfDistance) {
+            // Calculate how far into this step the midpoint should be
+            const remainingDistance = halfDistance - distanceSoFar;
+            const fraction = remainingDistance / stepDistance;
+
+            // Calculate coordinates first
+            const lat = step.start_location.lat + (step.end_location.lat - step.start_location.lat) * fraction;
+            const lng = step.start_location.lng + (step.end_location.lng - step.start_location.lng) * fraction;
+            const searchRadius = (totalDistance / 1609.34) * 0.15;
+            const totalDistanceMiles = totalDistance / 1609.34;
+
+            const radiusMeters = searchRadius * 1609.34;
+            const mapboxUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/` +
+                `overlay=circle:${lng},${lat},${radiusMeters}:stroke-color+FF0000,stroke-width+2,stroke-opacity+0.5/` +
+                `pin-s-m+FF0000(${lng},${lat})/` +
+                `${lng},${lat},13/500x300` +
+                `?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`;
+
             const midpoint = {
-                lat: step.end_location.lat,
-                lng: step.end_location.lng,
-                searchRadius: (totalDistance / 1609.34) * 0.15, // 15% of total distance in miles
-                totalDistance: totalDistance / 1609.34, // total distance in miles
-                routePolyline: directionsResponse.routes[0].overview_polyline.points
+                lat,
+                lng,
+                searchRadius,
+                totalDistance: totalDistanceMiles,
+                googleMapsUrl: `https://www.google.com/maps/dir/${encodeURIComponent(location1)}/${lat},${lng}/${encodeURIComponent(location2)}`,
+                mapboxUrl: mapboxUrl
             };
 
             console.log('\n===========================================');
@@ -44,10 +65,13 @@ export async function calculateDrivingMidpoint(location1: string, location2: str
             console.log('Total Distance:', midpoint.totalDistance.toFixed(2), 'miles');
             console.log('Time-Based Midpoint:', midpoint);
             console.log('Search Radius:', midpoint.searchRadius.toFixed(2), 'miles');
+            console.log('Google Maps URL:', midpoint.googleMapsUrl);
+            console.log('Mapbox URL:', midpoint.mapboxUrl);
             console.log('===========================================\n');
 
             return midpoint;
         }
+        distanceSoFar += stepDistance;
     }
 
     throw new Error('Could not calculate midpoint');

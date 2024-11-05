@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { calculateDrivingMidpoint } from '../lib/midpoint';
 
 interface StaticMapProps {
     venue: {
@@ -37,54 +38,36 @@ const StaticMap = ({ venue, locationA, locationB }: StaticMapProps) => {
                 const locationBCoords = locB.features[0].center;
                 const venueCoords = [venue.location.lng, venue.location.lat];
 
-                // Calculate midpoint
-                const midpoint = {
-                    lng: (locationACoords[0] + locationBCoords[0]) / 2,
-                    lat: (locationACoords[1] + locationBCoords[1]) / 2
-                };
+                // Get the drive-time midpoint
+                const drivingMidpoint = await calculateDrivingMidpoint(locationA, locationB);
 
                 // Calculate search radius in kilometers (Mapbox uses km)
-                const R = 3959; // Earth's radius in miles
-                const lat1 = locationACoords[1] * Math.PI / 180;
-                const lat2 = locationBCoords[1] * Math.PI / 180;
-                const dLat = (locationBCoords[1] - locationACoords[1]) * Math.PI / 180;
-                const dLon = (locationBCoords[0] - locationACoords[0]) * Math.PI / 180;
-
-                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                    Math.cos(lat1) * Math.cos(lat2) *
-                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                const distance = R * c;
-                const searchRadius = Math.round(distance / 8);
-
-                // Create circle path for search radius (convert miles to km)
-                const radiusKm = searchRadius * 1.60934; // Convert miles to kilometers
-                const circlePoints = 64; // Number of points to create circle
+                const radiusKm = drivingMidpoint.searchRadius * 1.60934; // Convert miles to kilometers
+                const circlePoints = 64;
                 const circlePath = Array.from({ length: circlePoints + 1 }, (_, i) => {
                     const angle = (i / circlePoints) * 2 * Math.PI;
-                    const lat = midpoint.lat + (radiusKm / 111.32) * Math.cos(angle);
-                    const lng = midpoint.lng + (radiusKm / (111.32 * Math.cos(midpoint.lat * Math.PI / 180))) * Math.sin(angle);
+                    const lat = drivingMidpoint.lat + (radiusKm / 111.32) * Math.cos(angle);
+                    const lng = drivingMidpoint.lng + (radiusKm / (111.32 * Math.cos(drivingMidpoint.lat * Math.PI / 180))) * Math.sin(angle);
                     return `${lng},${lat}`;
                 }).join(',');
 
-                // Create markers
+                // Create markers (using drive-time midpoint)
                 const markers = [
                     `pin-s-a+E34234(${locationACoords[0]},${locationACoords[1]})`,
                     `pin-s-b+2563EB(${locationBCoords[0]},${locationBCoords[1]})`,
                     `pin-s-star+10B981(${venueCoords[0]},${venueCoords[1]})`,
-                    // Add midpoint marker
-                    `pin-s-m+FFFF00(${midpoint.lng},${midpoint.lat})`
+                    `pin-s-m+FFFF00(${drivingMidpoint.lng},${drivingMidpoint.lat})`
                 ].join(',');
 
                 // Add circle path
                 const path = `path-1+4E4EFF-0.3(${circlePath})`;
 
-                // Calculate bounds including the circle
+                // Calculate bounds including all points
                 const coordinates = [
                     locationACoords,
                     locationBCoords,
                     venueCoords,
-                    [midpoint.lng, midpoint.lat]
+                    [drivingMidpoint.lng, drivingMidpoint.lat]
                 ];
 
                 // Calculate bounds that fit all points
@@ -111,7 +94,7 @@ const StaticMap = ({ venue, locationA, locationB }: StaticMapProps) => {
 
                 // Generate map URL with the calculated bounds
                 const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static`
-                    + `/${markers}`
+                    + `/${markers},${path}`
                     + `/[${paddedBounds}]`
                     + `/300x400`
                     + `?padding=0`
