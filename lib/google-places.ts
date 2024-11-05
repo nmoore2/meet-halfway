@@ -7,30 +7,33 @@ export async function getPlaceDetails(name: string, address: string) {
     const cached = placeCache.get(cacheKey);
 
     if (cached && cached.timestamp > Date.now() - CACHE_DURATION) {
-        console.log(`Cache hit for ${name} (${performance.now() - startTime}ms)`);
+        console.log(`Cache hit for ${name}`);
         return cached.data;
     }
 
     try {
-        const searchStartTime = performance.now();
         const searchResult = await fetchPlaceSearch(name, address);
-        console.log(`Place Search for ${name}: ${performance.now() - searchStartTime}ms`);
 
         if (!searchResult.place_id) {
             console.error(`No place_id found for ${name}`);
             return {};
         }
 
-        const detailsStartTime = performance.now();
         const detailsResult = await fetchPlaceDetails(searchResult.place_id);
-        console.log(`Place Details for ${name}: ${performance.now() - detailsStartTime}ms`);
+
+        // Process photos if they exist
+        const photoUrls = detailsResult.photos?.slice(0, 5).map((photo: any) => {
+            const url = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+            console.log('Generated photo URL:', url);
+            return url;
+        }) || [];
 
         const result = {
-            photos: detailsResult.photos?.map((photo: any) =>
-                `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${process.env.GOOGLE_MAPS_API_KEY}`
-            ) || [],
+            photos: photoUrls,
             geometry: searchResult.geometry,
-            price_level: detailsResult.price_level
+            price_level: detailsResult.price_level,
+            business_status: detailsResult.business_status,
+            opening_hours: detailsResult.opening_hours
         };
 
         placeCache.set(cacheKey, {
@@ -38,7 +41,7 @@ export async function getPlaceDetails(name: string, address: string) {
             data: result
         });
 
-        console.log(`Total time for ${name}: ${performance.now() - startTime}ms`);
+        console.log(`Processed ${name} with ${photoUrls.length} photos in ${performance.now() - startTime}ms`);
         return result;
     } catch (error) {
         console.error(`Error fetching place details for ${name}:`, error);
@@ -64,14 +67,29 @@ async function fetchPlaceSearch(name: string, address: string) {
 async function fetchPlaceDetails(placeId: string) {
     const detailsUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json');
     detailsUrl.searchParams.append('place_id', placeId);
-    detailsUrl.searchParams.append('fields', 'photos,price_level');
+    detailsUrl.searchParams.append('fields', [
+        'photos',
+        'price_level',
+        'geometry',
+        'business_status',
+        'opening_hours',
+        'formatted_phone_number',
+        'website'
+    ].join(','));
     detailsUrl.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
 
+    console.log('Fetching place details for:', placeId);
     const response = await fetch(detailsUrl.toString());
     const data = await response.json();
 
     if (data.status !== 'OK') {
-        console.error(`Place Details failed for ${placeId}:`, data.status);
+        console.error(`Place Details failed:`, data.status, data.error_message);
+        return {};
+    }
+
+    // Log the photo data we received
+    if (data.result?.photos) {
+        console.log(`Found ${data.result.photos.length} photos`);
     }
 
     return data.result || {};
