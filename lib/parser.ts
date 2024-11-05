@@ -5,44 +5,68 @@ interface Venue {
     why?: string;
 }
 
-export function parseVenues(content: string): Venue[] {
-    if (!content) return [];
+export function parseVenues(text: string) {
+    console.log('Raw GPT Response:', text); // Debug log
 
-    const venues: Venue[] = [];
+    const venues: Array<{
+        name: string;
+        address: string;
+        bestFor: string;
+        why: string;
+        price_level: string;
+    }> = [];
 
-    // Split on numbered items (1., 2., etc)
-    const venueBlocks = content.split(/\d+\.\s+\*\*/).filter(block => block.trim());
+    // Split the text into venue blocks
+    const venueBlocks = text.split(/\d+\.\s+\*\*/);
 
-    for (const block of venueBlocks) {
+    // Skip the first empty block if it exists
+    const blocks = venueBlocks.slice(1);
+
+    blocks.forEach((block) => {
         try {
-            // Extract name (between ** and **)
+            // Extract venue name
             const nameMatch = block.match(/([^*]+)\*\*/);
-            if (!nameMatch) continue;
+            const name = nameMatch ? nameMatch[1].trim() : '';
 
-            // Extract address (after "Address: " or between hyphens)
-            const addressMatch = block.match(/Address:\s*([^,]+,[^,]+,[^,]+(?:,[^,]+)?)|[-–]\s*Address:\s*([^,]+,[^,]+,[^,]+(?:,[^,]+)?)/);
-            if (!addressMatch) continue;
+            // Extract address
+            const addressMatch = block.match(/Address:\s*([^\n]+)/);
+            const address = addressMatch ? addressMatch[1].trim() : '';
 
-            const name = nameMatch[1].trim();
-            const address = (addressMatch[1] || addressMatch[2]).trim();
+            // Extract Best for
+            const bestForMatch = block.match(/Best for:\s*([^\n]+)/);
+            const bestFor = bestForMatch ? bestForMatch[1].trim() : '';
 
-            // Extract description if available
-            const descriptionMatch = block.match(/Description:\s*([^.]+(?:\.[^.]+)*)/);
-            const why = descriptionMatch ? descriptionMatch[1].trim() : undefined;
+            // Extract Why
+            const whyMatch = block.match(/Why:\s*([^\n]+(?:\n[^\n-][^\n]+)*)/);
+            const why = whyMatch ? whyMatch[1].trim() : '';
 
-            venues.push({
+            // Extract Price Level
+            const priceMatch = block.match(/Price Level:\s*(\$+)/);
+            const price_level = priceMatch ? priceMatch[1] : '';
+
+            console.log('Parsed Venue:', { // Debug log
                 name,
                 address,
-                why
+                bestFor,
+                why,
+                price_level
             });
 
-            console.log(`Successfully parsed venue: ${name}`);
+            if (name && address) {
+                venues.push({
+                    name,
+                    address,
+                    bestFor,
+                    why,
+                    price_level
+                });
+            }
         } catch (error) {
             console.error('Error parsing venue block:', error);
-            console.log('Block content:', block);
-            continue;
+            console.error('Problematic block:', block);
         }
-    }
+    });
 
+    console.log('Final parsed venues:', venues); // Debug log
     return venues;
 } 

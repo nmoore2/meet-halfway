@@ -25,7 +25,7 @@ export async function calculateDrivingMidpoint(location1: string, location2: str
 
     // Find the step that contains the midpoint
     let distanceSoFar = 0;
-    let previousDistance = 0;  // Track the previous step's distance
+    let previousDistance = 0;
     const halfDistance = totalDistance / 2;
 
     for (const step of steps) {
@@ -35,8 +35,6 @@ export async function calculateDrivingMidpoint(location1: string, location2: str
         if (distanceSoFar >= halfDistance) {
             // Calculate how far along this step the midpoint should be
             const fraction = (halfDistance - previousDistance) / stepDistance;
-
-            // Interpolate between start and end coordinates
             const lat = step.start_location.lat + (step.end_location.lat - step.start_location.lat) * fraction;
             const lng = step.start_location.lng + (step.end_location.lng - step.start_location.lng) * fraction;
 
@@ -48,16 +46,24 @@ export async function calculateDrivingMidpoint(location1: string, location2: str
                 routePolyline: directionsResponse.routes[0].overview_polyline.points
             };
 
+            // Enhanced logging
             console.log('\n===========================================');
-            console.log('🚗 ROUTE-BASED CALCULATIONS');
+            console.log('🚗 ROUTE ANALYSIS');
             console.log('===========================================');
-            console.log('Total Distance:', midpoint.totalDistance.toFixed(2), 'miles');
-            console.log('Time-Based Midpoint:', midpoint);
-            console.log('Search Radius:', midpoint.searchRadius.toFixed(2), 'miles');
-            console.log('\n🗺️ Google Maps Link:');
-            console.log(`https://www.google.com/maps?q=${midpoint.lat},${midpoint.lng}`);
-            console.log('\n🔍 Route Overview:');
-            console.log(`https://www.google.com/maps/dir/${encodeURIComponent(location1)}/${midpoint.lat},${midpoint.lng}/${encodeURIComponent(location2)}`);
+            console.log(`Total Route Distance: ${midpoint.totalDistance.toFixed(2)} miles`);
+            console.log(`Search Radius: ${midpoint.searchRadius.toFixed(2)} miles`);
+            console.log(`Location A: ${location1}`);
+            console.log(`Location B: ${location2}`);
+
+            // Log Google Maps links
+            console.log('\n🗺️ MAPS LINKS:');
+            console.log(`Midpoint: https://www.google.com/maps?q=${midpoint.lat},${midpoint.lng}`);
+            console.log(`Full Route: https://www.google.com/maps/dir/${encodeURIComponent(location1)}/${midpoint.lat},${midpoint.lng}/${encodeURIComponent(location2)}`);
+
+            // Log drive time analysis
+            console.log('\n⏱️ DRIVE TIME ANALYSIS:');
+            console.log(`Distance to midpoint from ${location1}: ${(totalDistance / 2 / 1609.34).toFixed(2)} miles`);
+            console.log(`Distance to midpoint from ${location2}: ${(totalDistance / 2 / 1609.34).toFixed(2)} miles`);
             console.log('===========================================\n');
 
             return midpoint;
