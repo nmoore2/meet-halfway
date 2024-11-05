@@ -20,20 +20,15 @@ export async function getRecommendedVenues(
 
         const midpoint = await calculateDrivingMidpoint(location1, location2);
 
-        const prompt = `Find exactly 5 popular, currently operating ${activityType.toLowerCase()} venues that are AS CLOSE AS POSSIBLE to the midpoint coordinates (${midpoint.lat}, ${midpoint.lng}). This is halfway between ${location1} and ${location2}.
+        const prompt = `Find exactly 5 popular, currently operating ${activityType.toLowerCase()} venues near the EXACT coordinates (${midpoint.lat}, ${midpoint.lng}). This is halfway between ${location1} and ${location2}.
 
-STRICT LOCATION REQUIREMENTS:
-1. MOST CRITICAL: Venues MUST be within ${(midpoint.searchRadius / 2).toFixed(1)} miles of the EXACT midpoint coordinates provided
-2. Prioritize venues that would result in similar drive times from both locations
-3. DO NOT suggest venues that are significantly closer to one location than the other
-4. Avoid venues that would create unbalanced travel times
-
-OTHER REQUIREMENTS:
-5. MUST be currently operating establishments
-6. MUST be ${activityType.toLowerCase()} establishments
-7. MUST be suitable for ${meetupType.toLowerCase()}
-8. Price Range: ${priceRange !== 'any' ? `ONLY suggest venues matching this price level for the local area: ${priceRange}` : 'venues of any price range'}
-9. MUST provide the exact street address for accurate location matching
+CRITICAL REQUIREMENTS:
+1. Most Important: Venues MUST be within ${midpoint.searchRadius.toFixed(1)} miles of the exact coordinates provided
+2. MUST be currently operating establishments
+3. MUST be ${activityType.toLowerCase()} establishments
+4. MUST be suitable for ${meetupType.toLowerCase()}
+5. Price Range: ${priceRange !== 'any' ? `ONLY suggest venues matching this price level for the local area: ${priceRange}` : 'venues of any price range'}
+6. MUST provide the exact street address for accurate location matching
 
 PRICE LEVEL DEFINITIONS (Always relative to local area):
 $ = Budget-friendly spots that are easy on the wallet for this area
@@ -46,7 +41,6 @@ Return EXACTLY 5 venues in this EXACT format:
    - Address: [full street address including number, street, city, state, zip]
    - Best for: [one short phrase about what makes this spot ideal]
    - Why: [2-3 sentences about the venue's atmosphere and what makes it special]
-   - Price Level: [$ or $$ or $$$, based on local context]
 
 2. **[Venue Name]**
    [continue same format]`;
@@ -56,7 +50,7 @@ Return EXACTLY 5 venues in this EXACT format:
             messages: [
                 {
                     role: "system",
-                    content: "You are a local expert focused on finding venues that create fair, balanced meeting points. Your top priority is suggesting venues very close to the exact midpoint coordinates to ensure similar travel times for all parties. Never suggest venues that would create unbalanced travel times."
+                    content: "You are a local expert who understands that price levels are always relative to the local area. A budget-friendly ($) venue in Manhattan would be different from a budget-friendly venue in a small town. Always consider local context when assigning price levels."
                 },
                 {
                     role: "user",
