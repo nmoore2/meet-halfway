@@ -95,35 +95,65 @@ async function fetchPlaceDetails(placeId: string) {
     return data.result || {};
 }
 
-async function fetchDriveTimes(
-    origins: string[],
-    destinations: string[],
-) {
-    const url = new URL('https://maps.googleapis.com/maps/api/distancematrix/json');
-    url.searchParams.append('origins', origins.join('|'));
-    url.searchParams.append('destinations', destinations.join('|'));
-    url.searchParams.append('mode', 'driving');
-    url.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
+async function getDriveTimes(venues: any[], location1: string, location2: string) {
+    const BATCH_SIZE = 10;
+    let allDriveTimes = {
+        fromA: [],
+        fromB: []
+    };
 
-    console.log('🚗 Fetching drive times for:', {
-        origins,
-        destinations: destinations.map(d => d.split(',').slice(0, 2).join(',')) // Log shortened coords
-    });
+    try {
+        // Process venues in batches
+        for (let i = 0; i < venues.length; i += BATCH_SIZE) {
+            const batch = venues.slice(i, i + BATCH_SIZE);
+            const destinations = batch.map(venue =>
+                `${venue.geometry.location.lat},${venue.geometry.location.lng}`
+            );
 
-    const response = await fetch(url.toString());
-    const data = await response.json();
+            const response = await fetch(
+                `https://maps.googleapis.com/maps/api/distancematrix/json?` +
+                `origins=${encodeURIComponent(location1)}|${encodeURIComponent(location2)}` +
+                `&destinations=${destinations.join('|')}` +
+                `&mode=driving` +
+                `&key=${process.env.GOOGLE_MAPS_API_KEY}`
+            );
 
-    if (data.status !== 'OK') {
-        console.error('Distance Matrix API error:', data.status, data.error_message);
-        return null;
+            const data = await response.json();
+
+            if (data.status === 'OK' && data.rows?.length >= 2) {
+                // Extract drive times for location A
+                const fromA = data.rows[0].elements.map(element => ({
+                    duration: element.duration?.value ? Math.round(element.duration.value / 60) : null
+                }));
+
+                // Extract drive times for location B
+                const fromB = data.rows[1].elements.map(element => ({
+                    duration: element.duration?.value ? Math.round(element.duration.value / 60) : null
+                }));
+
+                allDriveTimes.fromA.push(...fromA);
+                allDriveTimes.fromB.push(...fromB);
+            } else {
+                // If API call fails, add null values for this batch
+                const nullTimes = batch.map(() => ({ duration: null }));
+                allDriveTimes.fromA.push(...nullTimes);
+                allDriveTimes.fromB.push(...nullTimes);
+            }
+
+            // Add delay between batches
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        return allDriveTimes;
+
+    } catch (error) {
+        console.error('Error fetching drive times:', error);
+        // Return null drive times for all venues if there's an error
+        return {
+            fromA: venues.map(() => ({ duration: null })),
+            fromB: venues.map(() => ({ duration: null }))
+        };
     }
-
-    return data.rows.map((row: any) =>
-        row.elements.map((element: any) => ({
-            duration: element.duration?.text || 'Unknown',
-            distance: element.distance?.text || 'Unknown'
-        }))
-    );
 }
 
 export async function searchNearbyVenues(
@@ -154,7 +184,7 @@ export async function searchNearbyVenues(
     console.log('Radius:', `${expandedRadius} miles (${(expandedRadius * 1609.34).toFixed(0)} meters)`);
     console.log('Type:', mapActivityToGoogleType(activityType));
     console.log('Price Range:', priceRange);
-    console.log('Minimum Rating: 4.4');
+    console.log('Minimum Rating: 4.0');
     console.log('Search URL:', searchUrl.toString());
 
     const allVenues = [];
@@ -178,8 +208,8 @@ export async function searchNearbyVenues(
         const validVenues = data.results.filter((venue: any) =>
             venue.business_status !== 'PERMANENTLY_CLOSED' &&
             venue.business_status !== 'CLOSED_TEMPORARILY' &&
-            venue.rating >= 4.4 &&
-            venue.user_ratings_total >= 100  // Ensure sufficient number of ratings
+            venue.rating >= 4 &&
+            venue.user_ratings_total >= 25
         );
 
         console.log(`\nPage Results:`);
@@ -194,7 +224,7 @@ export async function searchNearbyVenues(
         allVenues.push(...validVenues);
         pageToken = data.next_page_token;
 
-    } while (pageToken && allVenues.length < 30);
+    } while (pageToken && allVenues.length < 50);
 
     console.log(`\n📍 Final Results:`);
     console.log(`Total highly-rated venues found: ${allVenues.length}`);
@@ -202,25 +232,26 @@ export async function searchNearbyVenues(
     // Sort by rating (highest first)
     const sortedVenues = allVenues
         .sort((a: any, b: any) => b.rating - a.rating)
-        .slice(0, 30);
+        .slice(0, 50);
 
     // Fetch drive times for all venues
     const venueCoords = sortedVenues.map(venue =>
         `${venue.geometry.location.lat},${venue.geometry.location.lng}`
     );
 
-    const driveTimes = await fetchDriveTimes(
-        [location1, location2],
-        venueCoords
+    const driveTimes = await getDriveTimes(
+        sortedVenues,
+        location1,
+        location2
     );
 
     // Add drive times to venue objects
     return sortedVenues.map((venue, index) => ({
         ...venue,
-        driveTimes: driveTimes ? {
-            fromA: driveTimes[0][index].duration,
-            fromB: driveTimes[1][index].duration
-        } : null
+        driveTimes: {
+            fromLocationA: driveTimes.fromA[index]?.duration || null,
+            fromLocationB: driveTimes.fromB[index]?.duration || null
+        }
     }));
 }
 

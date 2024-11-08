@@ -5,10 +5,19 @@ import SearchForm from '../components/SearchForm';
 import Recommendations from '../components/Recommendations';
 import { Toast } from '../components/Toast';
 import LoadingState from '../components/LoadingState';
+import ClusterResults from '../components/ClusterResults';
+import { ClusterService } from '../services/ClusterService';
 
 interface SearchResult {
     success: boolean;
     suggestions?: any[];
+    clusters?: any[];
+    midpoint?: {
+        lat: number;
+        lng: number;
+        searchRadius: number;
+        routePolyline?: string;
+    };
     error?: string;
 }
 
@@ -45,20 +54,47 @@ export default function Home() {
             const data = await response.json();
 
             if (!response.ok) {
-                return {
-                    error: data.error || "We couldn't find any spots matching your criteria. Try adjusting your search or selecting different locations."
-                };
+                setSearchResult({
+                    success: false,
+                    error: data.error || "We couldn't find any spots matching your criteria. Try adjusting your search or selecting different locations.",
+                    suggestions: []
+                });
+                return;
             }
 
-            setSearchResult(data);
-            setToastMessage('Found some great meeting spots!');
-            setShowToast(true);
-            setTimeout(() => setShowToast(false), 3000);
-            return data;
+            if (data.suggestions?.length > 0) {
+                const clusterService = new ClusterService();
+                const clusters = await clusterService.findClusters(
+                    data.suggestions,
+                    searchData.activityType,
+                    searchData.meetupType
+                );
+
+                setSearchResult({
+                    success: true,
+                    suggestions: data.suggestions,
+                    clusters: clusters,
+                    midpoint: data.midpoint
+                });
+
+                setToastMessage('Found some great meeting spots!');
+                setShowToast(true);
+                setTimeout(() => setShowToast(false), 3000);
+            } else {
+                setSearchResult({
+                    success: false,
+                    error: "We couldn't find any spots matching your criteria. Try adjusting your search or selecting different locations.",
+                    suggestions: []
+                });
+            }
+
         } catch (error) {
-            return {
-                error: "We couldn't find any spots matching your criteria. Try adjusting your search or selecting different locations."
-            };
+            console.error('Search error:', error);
+            setSearchResult({
+                success: false,
+                error: "We couldn't find any spots matching your criteria. Try adjusting your search or selecting different locations.",
+                suggestions: []
+            });
         } finally {
             setIsLoading(false);
         }
@@ -71,6 +107,14 @@ export default function Home() {
                 {showToast && <Toast message={toastMessage} />}
                 <SearchForm onSubmit={handleSearch} isLoading={isLoading} />
                 {isLoading && <LoadingState vibe={currentSearch?.meetupType} />}
+                {searchResult?.clusters && searchResult.clusters.length > 0 && (
+                    <ClusterResults
+                        clusters={searchResult.clusters}
+                        midpoint={searchResult.midpoint}
+                        locationA={currentSearch?.locationA}
+                        locationB={currentSearch?.locationB}
+                    />
+                )}
                 <Recommendations
                     results={searchResult}
                     locationA={currentSearch?.locationA}

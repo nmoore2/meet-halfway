@@ -41,7 +41,7 @@ export async function calculateDrivingMidpoint(location1: string, location2: str
             const midpoint = {
                 lat,
                 lng,
-                searchRadius: (totalDistance / 1609.34) * 0.15, // 15% of total distance in miles
+                searchRadius: (totalDistance / 1609.34) * .15, // 15% of total distance in miles
                 totalDistance: totalDistance / 1609.34, // total distance in miles
                 routePolyline: directionsResponse.routes[0].overview_polyline.points
             };

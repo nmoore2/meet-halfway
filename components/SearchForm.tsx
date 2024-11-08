@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import PlaceAutocomplete from './PlaceAutocomplete';
+import { ClusterService } from '../services/ClusterService';
 
 interface SearchFormProps {
     onSubmit: (searchData: {
@@ -27,7 +28,6 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
         e.preventDefault();
         setValidationError(null);
 
-        // Check if both locations are filled
         if (!formData.location1 || !formData.location2) {
             setValidationError('Please enter both locations to find meeting spots');
             return;
@@ -44,8 +44,9 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
 
             if (response?.error) {
                 setValidationError(response.error);
-                return;
             }
+
+            return response;
 
         } catch (error) {
             const errorMessage = error instanceof Error
@@ -54,6 +55,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
 
             setValidationError(errorMessage);
             console.error('Form submission error:', error);
+            return { error: errorMessage };
         }
     };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import PhotoCarousel from './PhotoCarousel';
 import LoadingState from './LoadingState';
 import StaticMap from './StaticMap';
@@ -17,8 +17,8 @@ interface Venue {
         lng: number;
     };
     driveTimes?: {
-        fromA: string;  // From Google Distance Matrix API
-        fromB: string;  // From Google Distance Matrix API
+        fromLocationA: number | null;
+        fromLocationB: number | null;
     };
 }
 
@@ -26,6 +26,7 @@ interface RecommendationsProps {
     results: {
         success: boolean;
         suggestions: Venue[];
+        error?: string;
         midpoint?: {
             lat: number;
             lng: number;
@@ -37,14 +38,10 @@ interface RecommendationsProps {
     locationB?: string;
     isLoading: boolean;
     meetupType?: string;
-    locationType?: string;
 }
 
-// [Keep getPriceDisplay exactly as is]
 const getPriceDisplay = (price_level?: number) => {
-    // Changed to show one dollar sign by default
-    const level = price_level ?? 1;  // Use nullish coalescing to default to 1
-
+    const level = price_level ?? 1;
     const dollars = ''.padStart(level, '$');
     const greyDollars = ''.padStart(4 - level, '$');
 
@@ -52,7 +49,6 @@ const getPriceDisplay = (price_level?: number) => {
         <span className="text-sm ml-2 relative group cursor-help">
             <span className="text-[#0071e3]">{dollars}</span>
             <span className="text-[#86868b]">{greyDollars}</span>
-
             <div className="
                 absolute bottom-full left-1/2 -translate-x-1/2 mb-2
                 invisible group-hover:visible opacity-0 group-hover:opacity-100
@@ -69,124 +65,18 @@ const getPriceDisplay = (price_level?: number) => {
     );
 };
 
-// [Keep getStaticMapUrl exactly as is]
-const getStaticMapUrl = (locationA: string, locationB: string, venue: { location?: { lat: number; lng: number } }) => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    const markers = [
-        `color:0x38BDF8|label:A|${locationA}`,
-        `color:0x38BDF8|label:B|${locationB}`,
-    ];
-
-    if (venue.location) {
-        markers.push(`color:0x38BDF8|icon:https://maps.google.com/mapfiles/kml/paddle/star.png|${venue.location.lat},${venue.location.lng}`);
-    }
-
-    // Night mode styles from the example
-    const styles = [
-        { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-        { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-        { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-        { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
-        { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#746855" }] },
-        { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
-    ]; // Simplified version of the styles for Static Maps API
-
-    return `https://maps.googleapis.com/maps/api/staticmap?`
-        + `size=300x300`
-        + `&zoom=11`
-        + `&markers=${markers.join('&markers=')}`
-        + `&key=${apiKey}`
-        + `&style=${encodeURIComponent(JSON.stringify(styles))}`
-        + `&scale=2`;
-};
-
-// [Keep VenueMap exactly as is]
-const VenueMap = ({ locationA, locationB, venue }: {
-    locationA: string;
-    locationB: string;
-    venue: { location?: { lat: number; lng: number } }
-}) => {
-    const mapUrl = getStaticMapUrl(locationA, locationB, venue);
+export default function Recommendations({ results, locationA, locationB, isLoading, meetupType }: RecommendationsProps) {
+    if (isLoading) return null;
 
     return (
-        <div className="w-full h-full rounded-lg overflow-hidden">
-            <img
-                src={mapUrl}
-                alt="Map showing venue location"
-                className="w-full h-full object-cover rounded-lg"
-            />
-        </div>
-    );
-};
-
-const formatDriveTime = (driveTimes: { fromA: string; fromB: string }, locationA: string, locationB: string) => {
-    const cityA = locationA?.split(',')[0] || 'Location A';
-    const cityB = locationB?.split(',')[0] || 'Location B';
-
-    return (
-        <div className="flex items-center text-sm text-gray-400 gap-4">
-            <span>From {cityA}: {driveTimes.fromA}</span>
-            <span className="mx-2 text-gray-600">•</span>
-            <span>From {cityB}: {driveTimes.fromB}</span>
-        </div>
-    );
-};
-
-export default function Recommendations({ results, locationA, locationB, isLoading, meetupType = 'meetup' }: RecommendationsProps) {
-    if (isLoading) {
-        return (
-            <div className="mt-12 space-y-12">
-                {[1, 2, 3].map((i) => (
-                    <div key={i} className="bg-[#1A1A1A] rounded-xl p-6 border border-[#333333] animate-pulse">
-                        <div className="flex flex-col lg:flex-row gap-6">
-                            <div className="lg:w-1/2">
-                                <div className="h-8 w-2/3 bg-[#2A2A2A] rounded mb-4"></div>
-                                <div className="h-4 w-1/3 bg-[#2A2A2A] rounded mb-4"></div>
-                                <div className="space-y-2">
-                                    <div className="h-4 w-full bg-[#2A2A2A] rounded"></div>
-                                    <div className="h-4 w-full bg-[#2A2A2A] rounded"></div>
-                                    <div className="h-4 w-3/4 bg-[#2A2A2A] rounded"></div>
-                                </div>
-                            </div>
-                            <div className="flex flex-col sm:flex-row gap-6 lg:w-1/2">
-                                <div className="sm:w-3/5 h-[250px] bg-[#2A2A2A] rounded-lg"></div>
-                                <div className="sm:w-2/5 h-[250px] bg-[#2A2A2A] rounded-lg"></div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        );
-    }
-
-    // Handle error state
-    if (results?.error) {
-        return (
-            <div className="mt-8 p-6 bg-[#1A1A1A] rounded-xl border border-[#333333]">
-                <div className="flex items-center gap-3 text-[#FF3B30]">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-lg">{results.error}</span>
+        <div className="mt-8">
+            {results?.error ? (
+                <div className="bg-red-900/20 border border-red-900/50 rounded-xl p-6 text-center">
+                    <p className="text-red-400">{results.error}</p>
                 </div>
-            </div>
-        );
-    }
-
-    // Only show results if we have them
-    if (!results?.suggestions?.length) {
-        return null;
-    }
-
-    return (
-        <div className="mt-12">
-            {results?.suggestions && results.suggestions.length > 0 ? (
+            ) : results?.success && results.suggestions?.length > 0 ? (
                 <>
-                    <h2 className="text-2xl font-bold mb-8">
-                        Here are the best spots to meet for a {meetupType.toLowerCase()}
-                    </h2>
-                    <div className="space-y-12">
+                    <div className="space-y-6">
                         {results.suggestions.map((venue, index) => (
                             <div
                                 key={index}
@@ -246,9 +136,9 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
                                                     />
                                                 </svg>
                                                 <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                                                    <span>From {locationA?.split(',')[0]}: {venue.driveTimes.fromA}</span>
+                                                    <span>From {locationA?.split(',')[0]}: {venue.driveTimes.fromLocationA} min</span>
                                                     <span className="hidden sm:inline text-gray-600 mx-2">•</span>
-                                                    <span>From {locationB?.split(',')[0]}: {venue.driveTimes.fromB}</span>
+                                                    <span>From {locationB?.split(',')[0]}: {venue.driveTimes.fromLocationB} min</span>
                                                 </div>
                                             </div>
                                         )}
@@ -276,4 +166,4 @@ export default function Recommendations({ results, locationA, locationB, isLoadi
             ) : null}
         </div>
     );
-}  
+}
