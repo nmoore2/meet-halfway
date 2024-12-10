@@ -6,17 +6,38 @@ interface Midpoint {
     routePolyline?: string;
 }
 
+const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
+const routeCache = new Map<string, { timestamp: number; data: any }>();
+
 export async function calculateDrivingMidpoint(location1: string, location2: string): Promise<Midpoint> {
+    // Check if we're in development
+    if (process.env.NODE_ENV === 'development') {
+        const cacheKey = `${location1}-${location2}`;
+        const cached = routeCache.get(cacheKey);
+
+        if (cached && cached.timestamp > Date.now() - CACHE_DURATION) {
+            console.log('🎯 Using cached route data');
+            return cached.data;
+        }
+    }
+
     const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
     if (!GOOGLE_MAPS_KEY) throw new Error('Google Maps API key not found');
 
     // Get the route between the two locations
-    const directionsResponse = await fetch(
+    const response = await fetch(
         `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(location1)}&destination=${encodeURIComponent(location2)}&key=${GOOGLE_MAPS_KEY}`
-    ).then(res => res.json());
+    );
+    const directionsResponse = await response.json();
+
+    if (directionsResponse.status !== 'OK') {
+        console.error('Directions API error:', directionsResponse.status, directionsResponse.error_message);
+        throw new Error(`Unable to find route: ${directionsResponse.status}`);
+    }
 
     if (!directionsResponse.routes?.[0]?.legs?.[0]) {
-        throw new Error('Could not find route between locations');
+        console.error('No route found between locations:', location1, location2);
+        throw new Error('Could not find a driving route between these locations. Please check the addresses and try again.');
     }
 
     const route = directionsResponse.routes[0].legs[0];
@@ -65,6 +86,15 @@ export async function calculateDrivingMidpoint(location1: string, location2: str
             console.log(`Distance to midpoint from ${location1}: ${(totalDistance / 2 / 1609.34).toFixed(2)} miles`);
             console.log(`Distance to midpoint from ${location2}: ${(totalDistance / 2 / 1609.34).toFixed(2)} miles`);
             console.log('===========================================\n');
+
+            if (process.env.NODE_ENV === 'development') {
+                const cacheKey = `${location1}-${location2}`;
+                routeCache.set(cacheKey, {
+                    timestamp: Date.now(),
+                    data: midpoint
+                });
+                console.log('🔄 Caching route data');
+            }
 
             return midpoint;
         }
