@@ -157,115 +157,123 @@ async function getDriveTimes(venues: any[], location1: string, location2: string
 }
 
 export async function searchNearbyVenues(
-    midpoint: { lat: number; lng: number },
+    midpoint: { lat: number; lng: number; searchRadius: number },
     searchRadius: number,
     activityType: string,
     priceRange: string,
     location1: string,
-    location2: string
+    location2: string,
+    maxResults: number = 30
 ) {
-    const expandedRadius = searchRadius * 2;
+    const type = mapActivityToGoogleType(activityType);
+    const keywords = [
+        ...getActivityKeywords(activityType),
+        ...getVibeKeywords(activityType)
+    ].join('|');
 
     const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
-
     searchUrl.searchParams.append('location', `${midpoint.lat},${midpoint.lng}`);
-    searchUrl.searchParams.append('radius', `${expandedRadius * 1609.34}`); // Convert miles to meters, doubled
-    searchUrl.searchParams.append('type', mapActivityToGoogleType(activityType));
-    searchUrl.searchParams.append('keyword', activityType);
+    searchUrl.searchParams.append('radius', String(searchRadius * 1000)); // Convert km to meters
+    searchUrl.searchParams.append('type', type);
+    searchUrl.searchParams.append('keyword', keywords);
+    if (priceRange !== 'any') {
+        searchUrl.searchParams.append('minprice', priceRange);
+        searchUrl.searchParams.append('maxprice', priceRange);
+    }
     searchUrl.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
 
-    if (priceRange && priceRange !== 'any') {
-        searchUrl.searchParams.append('minprice', '0');
-        searchUrl.searchParams.append('maxprice', priceRange.length.toString());
+    let allVenues: any[] = [];
+    let pageToken: string | undefined;
+
+    try {
+        do {
+            if (pageToken) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+            const url = pageToken
+                ? `${searchUrl.toString()}&pagetoken=${pageToken}`
+                : searchUrl.toString();
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+                console.error('Places API error:', { status: data.status, error_message: data.error_message });
+                throw new Error(`Places API error: ${data.status}`);
+            }
+
+            // Filter venues
+            const validVenues = (data.results || []).filter((venue: any) =>
+                venue.business_status !== 'PERMANENTLY_CLOSED' &&
+                venue.business_status !== 'CLOSED_TEMPORARILY' &&
+                venue.rating >= 3.5 &&
+                venue.user_ratings_total >= 10
+            );
+
+            allVenues = [...allVenues, ...validVenues];
+            pageToken = data.next_page_token;
+
+        } while (pageToken && allVenues.length < maxResults);
+
+        // Sort by rating after collecting all venues
+        allVenues.sort((a, b) => b.rating - a.rating);
+
+        // Get drive times for all venues
+        const driveTimes = await getDriveTimes(allVenues, location1, location2);
+
+        return allVenues.map((venue, index) => ({
+            ...venue,
+            driveTimes: {
+                fromLocationA: driveTimes.fromA[index]?.duration || null,
+                fromLocationB: driveTimes.fromB[index]?.duration || null
+            }
+        }));
+
+    } catch (error) {
+        console.error('Error fetching venues:', error);
+        throw error;
     }
-
-    console.log('\n🔍 Google Places Search Parameters:');
-    console.log('Location:', `${midpoint.lat},${midpoint.lng}`);
-    console.log('Radius:', `${expandedRadius} miles (${(expandedRadius * 1609.34).toFixed(0)} meters)`);
-    console.log('Type:', mapActivityToGoogleType(activityType));
-    console.log('Price Range:', priceRange);
-    console.log('Minimum Rating: 4.0');
-    console.log('Search URL:', searchUrl.toString());
-
-    const allVenues = [];
-    let pageToken = null;
-
-    do {
-        if (pageToken) {
-            searchUrl.searchParams.set('pagetoken', pageToken);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-
-        const response = await fetch(searchUrl.toString());
-        const data = await response.json();
-
-        if (data.status !== 'OK') {
-            console.error('Places API error:', data.status, data.error_message);
-            break;
-        }
-
-        // Filter for open venues with high ratings
-        const validVenues = data.results.filter((venue: any) =>
-            venue.business_status !== 'PERMANENTLY_CLOSED' &&
-            venue.business_status !== 'CLOSED_TEMPORARILY' &&
-            venue.rating >= 4 &&
-            venue.user_ratings_total >= 25
-        );
-
-        console.log(`\nPage Results:`);
-        console.log(`Total venues found: ${data.results.length}`);
-        console.log(`Valid venues (open & highly rated): ${validVenues.length}`);
-
-        // Log filtered venues for debugging
-        validVenues.forEach((venue: any) => {
-            console.log(`- ${venue.name}: ${venue.rating}⭐ (${venue.user_ratings_total} reviews)`);
-        });
-
-        allVenues.push(...validVenues);
-        pageToken = data.next_page_token;
-
-    } while (pageToken && allVenues.length < 50);
-
-    console.log(`\n📍 Final Results:`);
-    console.log(`Total highly-rated venues found: ${allVenues.length}`);
-
-    // Sort by rating (highest first)
-    const sortedVenues = allVenues
-        .sort((a: any, b: any) => b.rating - a.rating)
-        .slice(0, 50);
-
-    // Fetch drive times for all venues
-    const venueCoords = sortedVenues.map(venue =>
-        `${venue.geometry.location.lat},${venue.geometry.location.lng}`
-    );
-
-    const driveTimes = await getDriveTimes(
-        sortedVenues,
-        location1,
-        location2
-    );
-
-    // Add drive times to venue objects
-    return sortedVenues.map((venue, index) => ({
-        ...venue,
-        driveTimes: {
-            fromLocationA: driveTimes.fromA[index]?.duration || null,
-            fromLocationB: driveTimes.fromB[index]?.duration || null
-        }
-    }));
 }
 
 function mapActivityToGoogleType(activityType: string): string {
+    const typeMap: { [key: string]: string } = {
+        'bar': 'bar',
+        'cocktails': 'bar',
+        'coffee shop': 'cafe',
+        'restaurant': 'restaurant',
+        'park': 'park'
+    };
+    console.log('Activity type:', activityType, '-> Mapped to:', typeMap[activityType.toLowerCase()]);
+    return typeMap[activityType.toLowerCase()] || 'establishment';
+}
+
+function getActivityKeywords(activityType: string): string[] {
     switch (activityType.toLowerCase()) {
         case 'cocktails':
-            return 'bar';
+            return ['romantic', 'trendy', 'cocktail'];
         case 'coffee shop':
-            return 'cafe';
+            return ['coffee', 'cafe', 'cozy'];
         case 'restaurant':
-            return 'restaurant';
+            return ['restaurant', 'dining', 'romantic'];
         case 'park':
-            return 'park';
+            return ['park', 'scenic', 'peaceful'];
         default:
-            return 'establishment';
+            return [activityType];
+    }
+}
+
+function getVibeKeywords(vibeType: string): string[] {
+    if (!vibeType) return [];
+
+    switch (vibeType.toLowerCase()) {
+        case 'first date':
+            return ['first date', 'romantic', 'intimate'];
+        case 'casual':
+            return ['casual', 'relaxed', 'laid-back'];
+        case 'fancy':
+            return ['upscale', 'elegant', 'fine'];
+        default:
+            return [];
     }
 }

@@ -9,6 +9,16 @@ interface Midpoint {
 const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 const routeCache = new Map<string, { timestamp: number; data: any }>();
 
+export function calculateGeometricMidpoint(
+    pointA: { lat: number; lng: number },
+    pointB: { lat: number; lng: number }
+): { lat: number; lng: number } {
+    return {
+        lat: (pointA.lat + pointB.lat) / 2,
+        lng: (pointA.lng + pointB.lng) / 2
+    };
+}
+
 export async function calculateDrivingMidpoint(location1: string, location2: string): Promise<Midpoint> {
     // Check if we're in development
     if (process.env.NODE_ENV === 'development') {

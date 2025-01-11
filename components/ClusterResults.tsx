@@ -60,48 +60,66 @@ export default function ClusterResults({
                 zoom: 14,
                 styles: [
                     {
-                        featureType: "all",
-                        elementType: "geometry",
-                        stylers: [{ color: "#242f3e" }]
-                    },
-                    {
-                        featureType: "all",
-                        elementType: "labels.text.stroke",
-                        stylers: [{ color: "#242f3e" }]
-                    },
-                    {
-                        featureType: "all",
-                        elementType: "labels.text.fill",
-                        stylers: [{ color: "#746855" }]
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
                     }
                 ]
             });
 
             mapRef.current = map;
 
-            // Add markers for each cluster
+            // Create bounds object
+            const bounds = new google.maps.LatLngBounds();
+
+            // Add markers and extend bounds for each cluster
             clusters.forEach((cluster, index) => {
                 const marker = new google.maps.Marker({
                     position: cluster.center,
                     map,
                     label: {
                         text: (index + 1).toString(),
-                        color: '#FFFFFF'
+                        color: '#FFFFFF',
+                        fontSize: "16px",
+                        fontWeight: "bold"
                     },
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
-                        scale: 20,
+                        scale: 22,
                         fillColor: getScoreColor(cluster.score),
-                        fillOpacity: 0.7,
+                        fillOpacity: 0.9,
                         strokeWeight: 2,
                         strokeColor: '#FFFFFF'
                     }
                 });
 
+                // Extend bounds to include this cluster
+                bounds.extend(cluster.center);
+
                 marker.addListener('click', () => {
                     setSelectedCluster(cluster);
                 });
             });
+
+            // Fit map to bounds with padding
+            if (clusters.length > 0) {
+                map.fitBounds(bounds, {
+                    padding: {
+                        top: 100,
+                        right: 100,
+                        bottom: 100,
+                        left: 100
+                    }
+                });
+
+                // Wait for bounds to be set, then zoom out one level
+                google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
+                    const currentZoom = map.getZoom();
+                    if (currentZoom) {
+                        map.setZoom(currentZoom - 1);  // Zoom out one level
+                    }
+                });
+            }
         };
 
         if (clusters.length > 0) {

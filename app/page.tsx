@@ -31,6 +31,7 @@ export default function Home() {
         locationB: string;
         meetupType?: string;
     } | null>(null);
+    const [results, setResults] = useState(null);
 
     const handleSearch = async (searchData: any) => {
         try {
@@ -63,17 +64,10 @@ export default function Home() {
             }
 
             if (data.suggestions?.length > 0) {
-                const clusterService = new ClusterService();
-                const clusters = await clusterService.findClusters(
-                    data.suggestions,
-                    searchData.activityType,
-                    searchData.meetupType
-                );
-
                 setSearchResult({
                     success: true,
                     suggestions: data.suggestions,
-                    clusters: clusters,
+                    clusters: data.clusters,
                     midpoint: data.midpoint
                 });
 
@@ -87,6 +81,8 @@ export default function Home() {
                     suggestions: []
                 });
             }
+
+            setResults(data);
 
         } catch (error) {
             console.error('Search error:', error);
@@ -105,7 +101,7 @@ export default function Home() {
             <div className="max-w-5xl mx-auto">
                 <h1 className="text-4xl font-bold text-center mb-8">Meet Halfway</h1>
                 {showToast && <Toast message={toastMessage} />}
-                <SearchForm onSubmit={handleSearch} isLoading={isLoading} />
+                <SearchForm onSubmit={handleSearch} isLoading={isLoading} results={results} />
                 {isLoading && <LoadingState vibe={currentSearch?.meetupType} />}
                 {searchResult?.clusters && searchResult.clusters.length > 0 && (
                     <ClusterResults

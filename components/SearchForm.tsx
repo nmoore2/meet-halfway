@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import PlaceAutocomplete from './PlaceAutocomplete';
 import { ClusterService } from '../services/ClusterService';
+import { VibePreferences } from '../types/index';
+import { VibeSliders } from './VibeSliders';
+import ClusterAnalysisMap from './ClusterAnalysisMap';
 
 interface SearchFormProps {
     onSubmit: (searchData: {
@@ -9,20 +12,36 @@ interface SearchFormProps {
         activityType: string;
         meetupType: string;
         priceRange: string;
+        preferences: VibePreferences;
     }) => Promise<{ error?: string }>;
     isLoading?: boolean;
+    results?: {
+        success: boolean;
+        suggestions: any[];
+        midpoint?: {
+            lat: number;
+            lng: number;
+            searchRadius: number;
+        };
+    } | null;
 }
 
-export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
+export default function SearchForm({ onSubmit, isLoading, results }: SearchFormProps) {
     const [formData, setFormData] = useState({
-        location1: 'West Hollywood, California, USA',
-        location2: 'Santa Monica, California, USA',
+        location1: 'Golden, CO, USA',
+        location2: 'Sloans Lake, Denver, Colorado',
         activityType: 'Cocktails',
         meetupType: 'First Date',
         priceRange: 'any'
     });
 
     const [validationError, setValidationError] = useState<string | null>(null);
+
+    const [preferences, setPreferences] = useState<VibePreferences>({
+        atmosphere: 0.5,
+        energy: 0.5,
+        locationPriority: 0.5
+    });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -34,19 +53,40 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
         }
 
         try {
-            const response = await onSubmit({
+            const response = await fetch('/api/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    location1: formData.location1,
+                    location2: formData.location2,
+                    activityType: formData.activityType,
+                    meetupType: formData.meetupType,
+                    priceRange: formData.priceRange,
+                    preferences: preferences
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setValidationError(data.error || "We couldn't find any spots matching your criteria.");
+                return { error: data.error };
+            }
+
+            // Call onSubmit with the response data to update parent state
+            onSubmit({
+                ...data,
                 location1: formData.location1,
                 location2: formData.location2,
                 activityType: formData.activityType,
                 meetupType: formData.meetupType,
-                priceRange: formData.priceRange
+                priceRange: formData.priceRange,
+                preferences: preferences
             });
 
-            if (response?.error) {
-                setValidationError(response.error);
-            }
-
-            return response;
+            return data;
 
         } catch (error) {
             const errorMessage = error instanceof Error
@@ -179,7 +219,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                         <PlaceAutocomplete
                             value={formData.location1}
                             onChange={(value) => setFormData(prev => ({ ...prev, location1: value }))}
-                            placeholder="Enter first location"
+                            placeholder="Sloans Lake, Denver, Colorado"
                             disabled={isLoading}
                             styles={customStyles}
                             onSelect={handleSelect}
@@ -195,7 +235,7 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                         <PlaceAutocomplete
                             value={formData.location2}
                             onChange={(value) => setFormData(prev => ({ ...prev, location2: value }))}
-                            placeholder="Enter second location"
+                            placeholder="Cherry Creek, Denver, Colorado"
                             disabled={isLoading}
                             styles={customStyles}
                             onKeyDown={handleKeyPress}
@@ -282,6 +322,14 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                 </div>
             </div>
 
+            <div className="mt-6">
+                <h3 className="text-lg font-medium mb-4">Customize Your Experience</h3>
+                <VibeSliders
+                    preferences={preferences}
+                    onChange={setPreferences}
+                />
+            </div>
+
             {validationError && (
                 <div className="bg-[#FF3B30]/10 border border-[#FF3B30]/20 rounded-lg p-4 flex items-center gap-3">
                     <svg className="w-5 h-5 text-[#FF3B30] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,6 +349,23 @@ export default function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
             >
                 Find Places
             </button>
+
+            {results?.success && !isLoading && (
+                <div className="mt-8">
+                    {console.log('Rendering map with:', {
+                        locationA: formData.location1,
+                        locationB: formData.location2,
+                        midpoint: results.midpoint,
+                        suggestions: results.suggestions?.length
+                    })}
+                    <ClusterAnalysisMap
+                        locationA={formData.location1}
+                        locationB={formData.location2}
+                        midpoint={results.midpoint}
+                        suggestions={results.suggestions}
+                    />
+                </div>
+            )}
         </form>
     );
 }

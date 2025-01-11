@@ -1,53 +1,40 @@
 import { NextResponse } from 'next/server';
 import { searchNearbyVenues } from '../../../lib/google-places';
-import { calculateDrivingMidpoint } from '../../../lib/midpoint';
+import { calculateGeometricMidpoint, calculateDrivingMidpoint } from '../../../lib/midpoint';
+import { ClusterService } from '../../../services/ClusterService';
 
 export async function POST(request: Request) {
-    const startTime = performance.now();
-
     try {
         const data = await request.json();
-        console.log('Search request:', data);
 
+        // Get the midpoint and geocoded locations
         const midpoint = await calculateDrivingMidpoint(data.location1, data.location2);
-        console.log('Calculated midpoint:', midpoint);
+        const [locationA, locationB] = await Promise.all([
+            geocodeLocation(data.location1),
+            geocodeLocation(data.location2)
+        ]);
 
-        // Get venues from Google Places with drive times
+        // Calculate search radius based on total distance
+        const searchRadius = Math.max(5, Math.min(15, midpoint.totalDistance / 3));
+
+        // Get venues from Google Places
         const venues = await searchNearbyVenues(
             midpoint,
-            midpoint.searchRadius,
+            searchRadius,
             data.activityType,
             data.priceRange,
             data.location1,
-            data.location2
+            data.location2,
+            30  // Get more venues for better filtering
         );
 
-        console.log(`Found ${venues.length} venues from Google Places`);
-
-        // Log each venue's details for review
-        venues.forEach((venue: any, index: number) => {
-            console.log(`\nVenue ${index + 1}: ${venue.name}`);
-            console.log(`Address: ${venue.vicinity}`);
-            console.log(`Rating: ${venue.rating} (${venue.user_ratings_total} reviews)`);
-            console.log(`Price Level: ${venue.price_level ? '$'.repeat(venue.price_level) : 'Not specified'}`);
-            console.log(`Location: ${venue.geometry.location.lat}, ${venue.geometry.location.lng}`);
-            console.log(`Business Status: ${venue.business_status}`);
-        });
+        // Score and filter venues using ClusterService
+        const clusterService = new ClusterService(locationA, locationB);
+        const scoredVenues = await clusterService.findVenues(venues, data.preferences);
 
         return NextResponse.json({
             success: true,
-            suggestions: venues.map((venue: any) => ({
-                name: venue.name,
-                address: venue.vicinity,
-                rating: venue.rating,
-                user_ratings_total: venue.user_ratings_total,
-                price_level: venue.price_level ? '$'.repeat(venue.price_level) : null,
-                location: venue.geometry.location,
-                business_status: venue.business_status,
-                place_id: venue.place_id,
-                types: venue.types,
-                driveTimes: venue.driveTimes
-            })),
+            suggestions: scoredVenues,
             midpoint: midpoint
         });
 
@@ -58,4 +45,49 @@ export async function POST(request: Request) {
             suggestions: []
         }, { status: 500 });
     }
+}
+
+async function geocodeLocation(address: string): Promise<{ lat: number; lng: number }> {
+    if (!address) {
+        throw new Error('No address provided for geocoding');
+    }
+
+    console.log(`Geocoding address: "${address}"`);
+
+    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+    url.searchParams.append('address', address);
+    url.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    console.log('Geocoding API response:', {
+        status: data.status,
+        resultCount: data.results?.length,
+        firstResult: data.results?.[0]
+    });
+
+    if (data.status !== 'OK' || !data.results?.[0]?.geometry?.location) {
+        console.error('Geocoding failed:', {
+            address,
+            status: data.status,
+            error_message: data.error_message
+        });
+        throw new Error(`Could not geocode address: ${address}`);
+    }
+
+    const location = data.results[0].geometry.location;
+
+    // Ensure we have valid numbers
+    const result = {
+        lat: parseFloat(location.lat),
+        lng: parseFloat(location.lng)
+    };
+
+    if (isNaN(result.lat) || isNaN(result.lng)) {
+        throw new Error(`Invalid coordinates for address: ${address}`);
+    }
+
+    console.log(`Successfully geocoded "${address}" to:`, result);
+    return result;
 }
