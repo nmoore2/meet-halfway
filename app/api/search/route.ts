@@ -6,13 +6,7 @@ import { LatLng, SearchParams } from '../../../types';
 export async function POST(request: Request) {
     try {
         const data = await request.json();
-        console.log('Search request data:', {
-            location1: data.location1,
-            location2: data.location2,
-            activityType: data.activityType,
-            preferences: data.preferences,
-            // Log any other relevant fields
-        });
+        console.log('Search request data:', data);
 
         // Validate required fields
         if (!data.location1 || !data.location2 || !data.activityType) {
@@ -23,17 +17,19 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        // Get the midpoint and geocoded locations
-        const midpoint = await calculateDrivingMidpoint(data.location1, data.location2);
-        const [locationA, locationB] = await Promise.all([
+        // Get coordinates for both locations
+        const [location1Coords, location2Coords] = await Promise.all([
             geocodeLocation(data.location1),
             geocodeLocation(data.location2)
         ]);
 
+        // Get the midpoint and geocoded locations
+        const midpoint = await calculateDrivingMidpoint(data.location1, data.location2);
+
         // Create search parameters
         const searchParams: SearchParams = {
-            locationA,
-            locationB,
+            locationA: location1Coords,
+            locationB: location2Coords,
             midpoint,
             radius: Math.max(5, Math.min(15, midpoint.totalDistance / 3)),
             minRating: 0,
@@ -64,34 +60,42 @@ export async function POST(request: Request) {
 
     } catch (error) {
         console.error('Search API error:', error);
-        return NextResponse.json({
-            error: "Something went wrong while finding meeting spots. Please try again.",
-            suggestions: []
-        }, { status: 500 });
+        return new Response(JSON.stringify({ error: 'Failed to process search request' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 }
 
-async function geocodeLocation(address: string): Promise<LatLng> {
-    if (!address) {
-        throw new Error('No address provided for geocoding');
+async function geocodeLocation(location: string): Promise<LatLng> {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000; // 1 second
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+            url.searchParams.append('address', location);
+            url.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
+
+            const response = await fetch(url.toString());
+            const data = await response.json();
+
+            if (data.status !== 'OK' || !data.results?.[0]?.geometry?.location) {
+                throw new Error(`Geocoding failed for ${location}: ${data.status}`);
+            }
+
+            return data.results[0].geometry.location;
+        } catch (error) {
+            if (attempt === MAX_RETRIES) {
+                console.error(`Failed to geocode after ${MAX_RETRIES} attempts:`, error);
+                throw error;
+            }
+            console.log(`Geocoding attempt ${attempt} failed, retrying in ${RETRY_DELAY}ms...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        }
     }
 
-    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
-    url.searchParams.append('address', address);
-    url.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
-
-    const response = await fetch(url.toString());
-    const data = await response.json();
-
-    if (data.status !== 'OK' || !data.results?.[0]?.geometry?.location) {
-        throw new Error(`Could not geocode address: ${address}`);
-    }
-
-    const location = data.results[0].geometry.location;
-    return {
-        lat: parseFloat(location.lat),
-        lng: parseFloat(location.lng)
-    };
+    throw new Error('Geocoding failed after all retries');
 }
 
 async function addDriveTimes(venues: any[], location1: string, location2: string) {

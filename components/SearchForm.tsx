@@ -29,9 +29,9 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
     const [validationError, setValidationError] = useState<string | null>(null);
 
     const [preferences, setPreferences] = useState<VibePreferences>({
-        atmosphere: 0.5,
-        energy: 0.5,
-        locationPriority: 0.5
+        venueStyle: 0,
+        neighborhoodVibe: 0,
+        locationPriority: 1
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -163,6 +163,41 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
         if (e.key === 'Enter') {
             e.preventDefault();
             handleSubmit(e as any);
+        }
+    };
+
+    const handleSearch = async () => {
+        console.log('Current slider values:', {
+            venueStyle: preferences.venueStyle,
+            neighborhoodVibe: preferences.neighborhoodVibe,
+            locationPriority: preferences.locationPriority
+        });
+
+        setIsLoading(true);
+        try {
+            const response = await fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    location1,
+                    location2,
+                    activityType,
+                    meetupType,
+                    priceRange,
+                    preferences: {
+                        venueStyle: preferences.venueStyle,
+                        neighborhoodVibe: preferences.neighborhoodVibe,
+                        locationPriority: preferences.locationPriority
+                    }
+                })
+            });
+
+            const data = await response.json();
+            onResults(data.venues);
+        } catch (error) {
+            console.error('Search error:', error);
+        } finally {
+            setIsLoading(false);
         }
     };
 

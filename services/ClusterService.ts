@@ -4,31 +4,9 @@ export class ClusterService {
     constructor(private locationA: LatLng, private locationB: LatLng) { }
 
     async findVenues(venues: any[], preferences: { locationPriority: number }) {
-        // If locationPriority is low (near 0), favor equal distance
-        // If locationPriority is high (near 1), favor entertainment districts
-        return venues.map(venue => {
-            const equidistanceScore = this.calculateEquidistanceScore(venue.geometry.location);
-            const densityScore = this.calculateEntertainmentScore(venue, venues);
-
-            // Calculate final score based on location priority
-            const finalScore = preferences.locationPriority <= 0.2
-                ? equidistanceScore  // Strongly favor equal distance
-                : preferences.locationPriority >= 0.8
-                    ? densityScore   // Strongly favor entertainment districts
-                    : (equidistanceScore * (1 - preferences.locationPriority)) +
-                    (densityScore * preferences.locationPriority);
-
-            return {
-                ...venue,
-                scores: {
-                    equidistance: equidistanceScore,
-                    density: densityScore,
-                    final: finalScore
-                }
-            };
-        })
-            .sort((a, b) => b.scores.final - a.scores.final)
-            .slice(0, 10);
+        // Similar scoring logic to SearchService
+        const equidistanceScore = this.calculateEquidistanceScore(venue.geometry.location);
+        const densityScore = this.calculateEntertainmentScore(venue, venues);
     }
 
     private calculateEquidistanceScore(location: LatLng): number {

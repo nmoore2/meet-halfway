@@ -4,13 +4,13 @@ export interface LatLng {
 }
 
 export interface VibePreferences {
-    atmosphere: number;
-    energy: number;
-    locationPriority: number;
+    venueStyle: number;          // 0 = Casual & Creative, 1 = Refined & Elegant
+    neighborhoodVibe: number;    // 0 = Artsy & Eclectic, 1 = Polished & Established
+    locationPriority: number;    // 0 = Equal Distance, 1 = Entertainment Districts
 }
 
 export interface SearchStrategy {
-    type: 'EQUAL_DISTANCE' | 'ENTERTAINMENT_DISTRICT' | 'BALANCED';
+    type: 'EQUAL_DISTANCE' | 'BALANCED' | 'ENTERTAINMENT_DISTRICT';
     searchRadius: number;
     minRating: number;
     minReviews: number;
@@ -53,4 +53,12 @@ export interface SearchParams {
     location1: string;
     location2: string;
     maxResults?: number;
+}
+
+export interface VenueScores {
+    distanceBalance: number;
+    districtVibrancy: number;
+    vibeMatch: number;
+    baseQuality: number;
+    final: number;
 }

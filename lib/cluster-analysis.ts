@@ -4,15 +4,7 @@ interface DateCluster {
         lat: number;
         lng: number;
     };
-    primaryVenues: VenueDetails[];  // Main venues (restaurants/bars with high ratings)
-    nearbyVenues: VenueDetails[];   // Supporting venues within walking distance
-    score: number;
-    metrics: {
-        varietyScore: number;
-        qualityScore: number;
-        densityScore: number;
-        averageRating: number;
-    };
+    primaryVenues: VenueDetails[];
 }
 
 interface VenueDetails {

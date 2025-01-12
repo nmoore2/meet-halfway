@@ -1,3 +1,5 @@
+import { DENVER_DISTRICTS } from './districts';
+
 const placeCache = new Map<string, any>();
 const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 
@@ -157,139 +159,155 @@ async function getDriveTimes(venues: any[], location1: string, location2: string
 }
 
 export async function searchNearbyVenues(params: SearchParams): Promise<any[]> {
-    const type = mapActivityToGoogleType(params.activityType);
-    const keywords = [
-        ...getActivityKeywords(params.activityType),
-        ...getVibeKeywords(params.activityType)
-    ].join('|');
+    console.log('\n📡 Making Google Places API request...');
+
+    // When artsy & eclectic is selected, prioritize RiNo
+    let searchLocation = params.midpoint;
+    if (params.preferences?.neighborhoodVibe <= 0.5) {  // Artsy & Eclectic selected
+        const rinoDistrict = DENVER_DISTRICTS.find(d => d.name.includes('RiNo'));
+        if (rinoDistrict) {
+            searchLocation = rinoDistrict.center;
+            console.log('🎨 Prioritizing RiNo district for artsy venues');
+        }
+    }
 
     const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
-    searchUrl.searchParams.append('location', `${params.midpoint.lat},${params.midpoint.lng}`);
-    searchUrl.searchParams.append('radius', String(params.radius * 1000));
-    searchUrl.searchParams.append('type', type);
-    searchUrl.searchParams.append('keyword', keywords);
-    if (params.priceRange !== 'any') {
-        searchUrl.searchParams.append('minprice', params.priceRange);
-        searchUrl.searchParams.append('maxprice', params.priceRange);
-    }
+    searchUrl.searchParams.append('location', `${searchLocation.lat},${searchLocation.lng}`);
+    // Reduce radius to stay within district
+    searchUrl.searchParams.append('radius', '1000');  // 1km radius to match RiNo district size
     searchUrl.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
 
-    // Log the URL for debugging (remove sensitive info)
-    console.log('Search URL:', searchUrl.toString().replace(process.env.GOOGLE_MAPS_API_KEY!, 'API_KEY'));
+    // Get base type from activity
+    const baseType = mapActivityToGoogleType(params.activityType);
+    searchUrl.searchParams.append('type', baseType);
 
-    let allVenues: any[] = [];
-    let pageToken: string | undefined;
+    // Add keywords based on preferences
+    const keywords = [];
+
+    // Venue Style keywords (0 = Casual, 1 = Refined)
+    if (params.preferences?.venueStyle <= 0.5) {
+        keywords.push('casual', 'creative', 'funky');
+        console.log('Adding casual keywords');
+    } else {
+        keywords.push('upscale', 'refined', 'elegant');
+        console.log('Adding refined keywords');
+    }
+
+    // Neighborhood keywords (0 = Artsy, 1 = Polished)
+    if (params.preferences?.neighborhoodVibe <= 0.5) {
+        keywords.push('artsy', 'indie', 'craft');
+        console.log('Adding artsy keywords');
+    } else {
+        keywords.push('upscale', 'polished', 'established');
+        console.log('Adding polished keywords');
+    }
+
+    // Location Priority (0 = Equal Distance, 1 = Entertainment)
+    if (params.preferences?.locationPriority >= 0.5) {
+        keywords.push('entertainment', 'nightlife', 'district');
+        console.log('Adding entertainment keywords');
+    }
+
+    // Add base type keywords
+    if (params.activityType.toLowerCase() === 'cocktails') {
+        keywords.push('cocktail', 'bar', 'lounge');
+    }
+
+    console.log('🎯 Raw slider values:', {
+        venueStyle: params.preferences?.venueStyle,
+        neighborhoodVibe: params.preferences?.neighborhoodVibe,
+        locationPriority: params.preferences?.locationPriority
+    });
+
+    console.log('🎯 Using preferences:', {
+        venueStyle: params.preferences?.venueStyle <= 0.5 ? 'Casual & Creative' : 'Refined & Elegant',
+        neighborhoodVibe: params.preferences?.neighborhoodVibe <= 0.5 ? 'Artsy & Eclectic' : 'Polished & Established',
+        locationPriority: params.preferences?.locationPriority >= 0.5 ? 'Entertainment Districts' : 'Equal Distance'
+    });
+
+    searchUrl.searchParams.append('keyword', keywords.join('|'));
+
+    console.log('🔍 Search criteria:', {
+        type: baseType,
+        keywords: keywords.join(', '),
+        location: `${params.midpoint.lat}, ${params.midpoint.lng}`,
+        radius: '5000m'
+    });
+
+    // Add relevant venue types based on the vibe we want
+    const types = ['bar'];  // Base type for cocktails
+    if (params.preferences?.neighborhoodVibe <= 0.5) {  // Artsy & Eclectic
+        types.push('art_gallery', 'museum', 'night_club');
+    }
+
+    searchUrl.searchParams.append('type', types.join('|'));
 
     try {
-        do {
-            if (pageToken) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
+        const response = await fetch(searchUrl.toString());
+        if (!response.ok) {
+            console.error('❌ Places API error:', response.status);
+            return [];
+        }
 
-            const url = pageToken
-                ? `${searchUrl.toString()}&pagetoken=${pageToken}`
-                : searchUrl.toString();
+        const data = await response.json();
+        console.log(`📊 Results: ${data.results?.length || 0} total venues found`);
 
-            const response = await fetch(url);
-            const data = await response.json();
+        // Less restrictive filtering
+        const filteredVenues = data.results?.filter((venue: any) =>
+            venue.rating >= 3.5 &&
+            venue.user_ratings_total >= 15
+        ) || [];
 
-            if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-                console.error('Places API error:', { status: data.status, error_message: data.error_message });
-                throw new Error(`Places API error: ${data.status}`);
-            }
-
-            // Enhanced venue filtering
-            const validVenues = (data.results || []).filter((venue: any) => {
-                // Basic status checks
-                const isOperational = venue.business_status === 'OPERATIONAL';
-
-                // Rating and review thresholds
-                const hasHighRating = venue.rating >= 4.4;
-                const hasEnoughReviews = venue.user_ratings_total >= 100;
-
-                // Additional quality checks
-                const hasPhotos = venue.photos && venue.photos.length > 0;
-                const hasValidAddress = venue.vicinity && venue.vicinity.length > 0;
-                const hasValidLocation = venue.geometry?.location?.lat && venue.geometry?.location?.lng;
-
-                // Price level check (if specified)
-                const meetsPrice = params.priceRange === 'any' ||
-                    venue.price_level === parseInt(params.priceRange);
-
-                return isOperational &&
-                    hasHighRating &&
-                    hasEnoughReviews &&
-                    hasPhotos &&
-                    hasValidAddress &&
-                    hasValidLocation &&
-                    meetsPrice;
-            });
-
-            allVenues = [...allVenues, ...validVenues];
-            pageToken = data.next_page_token;
-
-        } while (pageToken && allVenues.length < params.maxResults);
-
-        // Sort by a weighted score of rating and review count
-        allVenues.sort((a, b) => {
-            const scoreA = (a.rating * 0.7) + (Math.min(a.user_ratings_total / 1000, 1) * 0.3);
-            const scoreB = (b.rating * 0.7) + (Math.min(b.user_ratings_total / 1000, 1) * 0.3);
-            return scoreB - scoreA;
-        });
-
-        // Get drive times for all venues
-        const driveTimes = await getDriveTimes(allVenues, params.location1, params.location2);
-
-        return allVenues.map((venue, index) => ({
-            ...venue,
-            driveTimes: {
-                fromLocationA: driveTimes.fromA[index]?.duration || null,
-                fromLocationB: driveTimes.fromB[index]?.duration || null
-            }
-        }));
+        console.log(`✨ Filtered to ${filteredVenues.length} venues meeting criteria\n`);
+        return filteredVenues;
 
     } catch (error) {
-        console.error('Error fetching venues:', error);
-        throw error;
+        console.error('❌ Error searching venues:', error);
+        return [];
     }
 }
 
-function mapActivityToGoogleType(activityType: string): string {
-    if (!activityType) {
-        console.warn('No activity type provided, defaulting to establishment');
-        return 'establishment';
-    }
+function matchesNeighborhoodPreference(venue: any, neighborhoodVibe: number): number {
+    const artsyKeywords = ['art', 'gallery', 'indie', 'craft', 'brewery', 'creative', 'studio'];
+    const polishedKeywords = ['upscale', 'fine', 'lounge', 'cocktail'];
 
+    const venueText = [
+        venue.name,
+        venue.vicinity,
+        ...(venue.types || [])
+    ].join(' ').toLowerCase();
+
+    const artsyMatches = artsyKeywords.filter(k => venueText.includes(k)).length;
+    const polishedMatches = polishedKeywords.filter(k => venueText.includes(k)).length;
+
+    return neighborhoodVibe < 0.5 ?
+        artsyMatches / artsyKeywords.length :
+        polishedMatches / polishedKeywords.length;
+}
+
+function mapActivityToGoogleType(activityType: string): string {
     const typeMap: { [key: string]: string } = {
-        'bar': 'bar',
         'cocktails': 'bar',
-        'coffee shop': 'cafe',
+        'coffee': 'cafe',
         'restaurant': 'restaurant',
         'park': 'park'
     };
 
-    const mappedType = typeMap[activityType.toLowerCase()];
-    console.log('Activity type:', activityType, '-> Mapped to:', mappedType);
-    return mappedType || 'establishment';
+    const type = typeMap[activityType?.toLowerCase()];
+    console.log(`Mapped activity ${activityType} to type ${type || 'establishment'}`);
+    return type || 'establishment';
 }
 
 function getActivityKeywords(activityType: string): string[] {
-    if (!activityType) {
-        console.warn('No activity type provided for keywords');
-        return [];
-    }
-
-    switch (activityType.toLowerCase()) {
+    switch (activityType?.toLowerCase()) {
         case 'cocktails':
-            return ['romantic', 'trendy', 'cocktail'];
-        case 'coffee shop':
-            return ['coffee', 'cafe', 'cozy'];
+            return ['bar'];  // Simplified keywords
+        case 'coffee':
+            return ['cafe'];
         case 'restaurant':
-            return ['restaurant', 'dining', 'romantic'];
-        case 'park':
-            return ['park', 'scenic', 'peaceful'];
+            return ['restaurant'];
         default:
-            return [activityType];
+            return [];
     }
 }
 

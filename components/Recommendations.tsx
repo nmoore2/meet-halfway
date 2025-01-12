@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PhotoCarousel from './PhotoCarousel';
 import LoadingState from './LoadingState';
 import StaticMap from './StaticMap';
@@ -61,23 +61,30 @@ const getPriceDisplay = (price_level?: number) => {
 };
 
 export default function Recommendations({ venues, isLoading, location1, location2, midpoint }: RecommendationsProps) {
-    console.log('Recommendations props:', { venues, isLoading, location1, location2 });
+    useEffect(() => {
+        if (venues?.length) {
+            console.group('📊 Venue Analysis');
+            venues.forEach(venue => {
+                console.log(`${venue.name}:`, {
+                    location: venue.vicinity,
+                    scores: {
+                        vibeMatch: `${Math.round((venue.scores?.vibeMatch || 0) * 100)}%`,
+                        districtVibrancy: `${Math.round((venue.scores?.districtVibrancy || 0) * 100)}%`,
+                        final: `${Math.round((venue.scores?.final || 0) * 100)}%`
+                    }
+                });
+            });
+            console.groupEnd();
+        }
+    }, [venues]);
 
     if (isLoading) {
         return <LoadingState />;
     }
 
     if (!venues?.length) {
-        console.log('No venues to display');
         return null;
     }
-
-    console.log('Rendering map with:', {
-        locationA: location1,
-        locationB: location2,
-        venuesCount: venues.length,
-        firstVenue: venues[0]
-    });
 
     return (
         <div className="mt-8">
@@ -153,6 +160,40 @@ export default function Recommendations({ venues, isLoading, location1, location
                                         <div>Match Score: {Math.round(venue.scores.final * 100)}%</div>
                                     </div>
                                 )}
+
+                                <div className="flex flex-col gap-2 mt-4">
+                                    <div className="text-sm text-gray-400">
+                                        {venue.scores && (
+                                            <>
+                                                <div className="flex items-center gap-2">
+                                                    <span>Vibe Match:</span>
+                                                    <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-emerald-500 rounded-full"
+                                                            style={{ width: `${Math.round(venue.scores.vibeMatch * 100)}%` }}
+                                                        />
+                                                    </div>
+                                                    <span>{Math.round(venue.scores.vibeMatch * 100)}%</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span>{venue.scores.distanceBalance > 0.7 ? 'Equal Distance' : 'Entertainment District'}:</span>
+                                                    <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-emerald-500 rounded-full"
+                                                            style={{
+                                                                width: `${Math.round(
+                                                                    (venue.scores.distanceBalance > 0.7
+                                                                        ? venue.scores.distanceBalance
+                                                                        : venue.scores.districtVibrancy) * 100
+                                                                )}%`
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Media Section */}

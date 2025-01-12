@@ -1,115 +1,95 @@
-interface Midpoint {
-    lat: number;
-    lng: number;
-    searchRadius: number;
-    totalDistance: number;
-    routePolyline?: string;
-}
+import { LatLng } from '../types';
 
-const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
-const routeCache = new Map<string, { timestamp: number; data: any }>();
+const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
 
-export function calculateGeometricMidpoint(
-    pointA: { lat: number; lng: number },
-    pointB: { lat: number; lng: number }
-): { lat: number; lng: number } {
-    return {
-        lat: (pointA.lat + pointB.lat) / 2,
-        lng: (pointA.lng + pointB.lng) / 2
-    };
-}
-
-export async function calculateDrivingMidpoint(location1: string, location2: string): Promise<Midpoint> {
-    // Check if we're in development
-    if (process.env.NODE_ENV === 'development') {
-        const cacheKey = `${location1}-${location2}`;
-        const cached = routeCache.get(cacheKey);
-
-        if (cached && cached.timestamp > Date.now() - CACHE_DURATION) {
-            console.log('🎯 Using cached route data');
-            return cached.data;
+async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<Response> {
+    try {
+        const response = await fetch(url);
+        return response;
+    } catch (error) {
+        if (retries > 0) {
+            console.log(`Retrying fetch... (${retries} attempts remaining)`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            return fetchWithRetry(url, retries - 1);
         }
+        throw error;
     }
+}
 
-    const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
-    if (!GOOGLE_MAPS_KEY) throw new Error('Google Maps API key not found');
+export async function calculateDrivingMidpoint(
+    location1: string,
+    location2: string
+): Promise<LatLng> {
+    try {
+        // Get the route between the two locations
+        const url = `https://maps.googleapis.com/maps/api/directions/json?` +
+            `origin=${encodeURIComponent(location1)}` +
+            `&destination=${encodeURIComponent(location2)}` +
+            `&key=${GOOGLE_MAPS_KEY}`;
 
-    // Get the route between the two locations
-    const response = await fetch(
-        `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(location1)}&destination=${encodeURIComponent(location2)}&key=${GOOGLE_MAPS_KEY}`
-    );
-    const directionsResponse = await response.json();
+        const response = await fetchWithRetry(url);
+        const directionsResponse = await response.json();
 
-    if (directionsResponse.status !== 'OK') {
-        console.error('Directions API error:', directionsResponse.status, directionsResponse.error_message);
-        throw new Error(`Unable to find route: ${directionsResponse.status}`);
-    }
+        if (directionsResponse.status !== 'OK') {
+            console.error('Directions API error:', directionsResponse);
+            // Fall back to geometric midpoint if directions fail
+            return calculateGeometricMidpoint(location1, location2);
+        }
 
-    if (!directionsResponse.routes?.[0]?.legs?.[0]) {
-        console.error('No route found between locations:', location1, location2);
-        throw new Error('Could not find a driving route between these locations. Please check the addresses and try again.');
-    }
+        // Get the midpoint along the route
+        const route = directionsResponse.routes[0].legs[0];
+        const totalDistance = route.distance.value;
+        const steps = route.steps;
 
-    const route = directionsResponse.routes[0].legs[0];
-    const totalDistance = route.distance.value; // in meters
-    const steps = route.steps;
-
-    // Find the step that contains the midpoint
-    let distanceSoFar = 0;
-    let previousDistance = 0;
-    const halfDistance = totalDistance / 2;
-
-    for (const step of steps) {
-        const stepDistance = step.distance.value;
-        distanceSoFar += stepDistance;
-
-        if (distanceSoFar >= halfDistance) {
-            // Calculate how far along this step the midpoint should be
-            const fraction = (halfDistance - previousDistance) / stepDistance;
-            const lat = step.start_location.lat + (step.end_location.lat - step.start_location.lat) * fraction;
-            const lng = step.start_location.lng + (step.end_location.lng - step.start_location.lng) * fraction;
-
-            const midpoint = {
-                lat,
-                lng,
-                searchRadius: (totalDistance / 1609.34) * .15, // 15% of total distance in miles
-                totalDistance: totalDistance / 1609.34, // total distance in miles
-                routePolyline: directionsResponse.routes[0].overview_polyline.points
-            };
-
-            // Enhanced logging
-            console.log('\n===========================================');
-            console.log('🚗 ROUTE ANALYSIS');
-            console.log('===========================================');
-            console.log(`Total Route Distance: ${midpoint.totalDistance.toFixed(2)} miles`);
-            console.log(`Search Radius: ${midpoint.searchRadius.toFixed(2)} miles`);
-            console.log(`Location A: ${location1}`);
-            console.log(`Location B: ${location2}`);
-
-            // Log Google Maps links
-            console.log('\n🗺️ MAPS LINKS:');
-            console.log(`Midpoint: https://www.google.com/maps?q=${midpoint.lat},${midpoint.lng}`);
-            console.log(`Full Route: https://www.google.com/maps/dir/${encodeURIComponent(location1)}/${midpoint.lat},${midpoint.lng}/${encodeURIComponent(location2)}`);
-
-            // Log drive time analysis
-            console.log('\n⏱️ DRIVE TIME ANALYSIS:');
-            console.log(`Distance to midpoint from ${location1}: ${(totalDistance / 2 / 1609.34).toFixed(2)} miles`);
-            console.log(`Distance to midpoint from ${location2}: ${(totalDistance / 2 / 1609.34).toFixed(2)} miles`);
-            console.log('===========================================\n');
-
-            if (process.env.NODE_ENV === 'development') {
-                const cacheKey = `${location1}-${location2}`;
-                routeCache.set(cacheKey, {
-                    timestamp: Date.now(),
-                    data: midpoint
-                });
-                console.log('🔄 Caching route data');
+        let distanceCovered = 0;
+        for (const step of steps) {
+            distanceCovered += step.distance.value;
+            if (distanceCovered >= totalDistance / 2) {
+                return step.start_location;
             }
-
-            return midpoint;
         }
-        previousDistance = distanceSoFar;
+
+        // Fallback to geometric midpoint if something goes wrong
+        return calculateGeometricMidpoint(location1, location2);
+
+    } catch (error) {
+        console.error('Error calculating driving midpoint:', error);
+        // Fallback to geometric midpoint
+        return calculateGeometricMidpoint(location1, location2);
+    }
+}
+
+async function calculateGeometricMidpoint(location1: string, location2: string): Promise<LatLng> {
+    try {
+        // Get coordinates for both locations
+        const [loc1Coords, loc2Coords] = await Promise.all([
+            getCoordinates(location1),
+            getCoordinates(location2)
+        ]);
+
+        return {
+            lat: (loc1Coords.lat + loc2Coords.lat) / 2,
+            lng: (loc1Coords.lng + loc2Coords.lng) / 2
+        };
+    } catch (error) {
+        console.error('Error calculating geometric midpoint:', error);
+        throw error;
+    }
+}
+
+async function getCoordinates(location: string): Promise<LatLng> {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?` +
+        `address=${encodeURIComponent(location)}` +
+        `&key=${GOOGLE_MAPS_KEY}`;
+
+    const response = await fetchWithRetry(url);
+    const data = await response.json();
+
+    if (data.status !== 'OK') {
+        throw new Error(`Geocoding failed for ${location}`);
     }
 
-    throw new Error('Could not calculate midpoint');
+    return data.results[0].geometry.location;
 } 
