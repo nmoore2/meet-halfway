@@ -165,7 +165,7 @@ export async function searchNearbyVenues(params: SearchParams): Promise<any[]> {
 
     const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
     searchUrl.searchParams.append('location', `${params.midpoint.lat},${params.midpoint.lng}`);
-    searchUrl.searchParams.append('radius', String(params.radius * 1000)); // Convert km to meters
+    searchUrl.searchParams.append('radius', String(params.radius * 1000));
     searchUrl.searchParams.append('type', type);
     searchUrl.searchParams.append('keyword', keywords);
     if (params.priceRange !== 'any') {
@@ -173,6 +173,9 @@ export async function searchNearbyVenues(params: SearchParams): Promise<any[]> {
         searchUrl.searchParams.append('maxprice', params.priceRange);
     }
     searchUrl.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
+
+    // Log the URL for debugging (remove sensitive info)
+    console.log('Search URL:', searchUrl.toString().replace(process.env.GOOGLE_MAPS_API_KEY!, 'API_KEY'));
 
     let allVenues: any[] = [];
     let pageToken: string | undefined;
@@ -195,21 +198,44 @@ export async function searchNearbyVenues(params: SearchParams): Promise<any[]> {
                 throw new Error(`Places API error: ${data.status}`);
             }
 
-            // Filter venues
-            const validVenues = (data.results || []).filter((venue: any) =>
-                venue.business_status !== 'PERMANENTLY_CLOSED' &&
-                venue.business_status !== 'CLOSED_TEMPORARILY' &&
-                venue.rating >= 3.5 &&
-                venue.user_ratings_total >= 10
-            );
+            // Enhanced venue filtering
+            const validVenues = (data.results || []).filter((venue: any) => {
+                // Basic status checks
+                const isOperational = venue.business_status === 'OPERATIONAL';
+
+                // Rating and review thresholds
+                const hasHighRating = venue.rating >= 4.4;
+                const hasEnoughReviews = venue.user_ratings_total >= 100;
+
+                // Additional quality checks
+                const hasPhotos = venue.photos && venue.photos.length > 0;
+                const hasValidAddress = venue.vicinity && venue.vicinity.length > 0;
+                const hasValidLocation = venue.geometry?.location?.lat && venue.geometry?.location?.lng;
+
+                // Price level check (if specified)
+                const meetsPrice = params.priceRange === 'any' ||
+                    venue.price_level === parseInt(params.priceRange);
+
+                return isOperational &&
+                    hasHighRating &&
+                    hasEnoughReviews &&
+                    hasPhotos &&
+                    hasValidAddress &&
+                    hasValidLocation &&
+                    meetsPrice;
+            });
 
             allVenues = [...allVenues, ...validVenues];
             pageToken = data.next_page_token;
 
         } while (pageToken && allVenues.length < params.maxResults);
 
-        // Sort by rating after collecting all venues
-        allVenues.sort((a, b) => b.rating - a.rating);
+        // Sort by a weighted score of rating and review count
+        allVenues.sort((a, b) => {
+            const scoreA = (a.rating * 0.7) + (Math.min(a.user_ratings_total / 1000, 1) * 0.3);
+            const scoreB = (b.rating * 0.7) + (Math.min(b.user_ratings_total / 1000, 1) * 0.3);
+            return scoreB - scoreA;
+        });
 
         // Get drive times for all venues
         const driveTimes = await getDriveTimes(allVenues, params.location1, params.location2);
