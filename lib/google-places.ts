@@ -156,29 +156,21 @@ async function getDriveTimes(venues: any[], location1: string, location2: string
     }
 }
 
-export async function searchNearbyVenues(
-    midpoint: { lat: number; lng: number; searchRadius: number },
-    searchRadius: number,
-    activityType: string,
-    priceRange: string,
-    location1: string,
-    location2: string,
-    maxResults: number = 30
-) {
-    const type = mapActivityToGoogleType(activityType);
+export async function searchNearbyVenues(params: SearchParams): Promise<any[]> {
+    const type = mapActivityToGoogleType(params.activityType);
     const keywords = [
-        ...getActivityKeywords(activityType),
-        ...getVibeKeywords(activityType)
+        ...getActivityKeywords(params.activityType),
+        ...getVibeKeywords(params.activityType)
     ].join('|');
 
     const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
-    searchUrl.searchParams.append('location', `${midpoint.lat},${midpoint.lng}`);
-    searchUrl.searchParams.append('radius', String(searchRadius * 1000)); // Convert km to meters
+    searchUrl.searchParams.append('location', `${params.midpoint.lat},${params.midpoint.lng}`);
+    searchUrl.searchParams.append('radius', String(params.radius * 1000)); // Convert km to meters
     searchUrl.searchParams.append('type', type);
     searchUrl.searchParams.append('keyword', keywords);
-    if (priceRange !== 'any') {
-        searchUrl.searchParams.append('minprice', priceRange);
-        searchUrl.searchParams.append('maxprice', priceRange);
+    if (params.priceRange !== 'any') {
+        searchUrl.searchParams.append('minprice', params.priceRange);
+        searchUrl.searchParams.append('maxprice', params.priceRange);
     }
     searchUrl.searchParams.append('key', process.env.GOOGLE_MAPS_API_KEY!);
 
@@ -214,13 +206,13 @@ export async function searchNearbyVenues(
             allVenues = [...allVenues, ...validVenues];
             pageToken = data.next_page_token;
 
-        } while (pageToken && allVenues.length < maxResults);
+        } while (pageToken && allVenues.length < params.maxResults);
 
         // Sort by rating after collecting all venues
         allVenues.sort((a, b) => b.rating - a.rating);
 
         // Get drive times for all venues
-        const driveTimes = await getDriveTimes(allVenues, location1, location2);
+        const driveTimes = await getDriveTimes(allVenues, params.location1, params.location2);
 
         return allVenues.map((venue, index) => ({
             ...venue,
@@ -237,6 +229,11 @@ export async function searchNearbyVenues(
 }
 
 function mapActivityToGoogleType(activityType: string): string {
+    if (!activityType) {
+        console.warn('No activity type provided, defaulting to establishment');
+        return 'establishment';
+    }
+
     const typeMap: { [key: string]: string } = {
         'bar': 'bar',
         'cocktails': 'bar',
@@ -244,11 +241,18 @@ function mapActivityToGoogleType(activityType: string): string {
         'restaurant': 'restaurant',
         'park': 'park'
     };
-    console.log('Activity type:', activityType, '-> Mapped to:', typeMap[activityType.toLowerCase()]);
-    return typeMap[activityType.toLowerCase()] || 'establishment';
+
+    const mappedType = typeMap[activityType.toLowerCase()];
+    console.log('Activity type:', activityType, '-> Mapped to:', mappedType);
+    return mappedType || 'establishment';
 }
 
 function getActivityKeywords(activityType: string): string[] {
+    if (!activityType) {
+        console.warn('No activity type provided for keywords');
+        return [];
+    }
+
     switch (activityType.toLowerCase()) {
         case 'cocktails':
             return ['romantic', 'trendy', 'cocktail'];
@@ -264,7 +268,10 @@ function getActivityKeywords(activityType: string): string[] {
 }
 
 function getVibeKeywords(vibeType: string): string[] {
-    if (!vibeType) return [];
+    if (!vibeType) {
+        console.warn('No vibe type provided for keywords');
+        return [];
+    }
 
     switch (vibeType.toLowerCase()) {
         case 'first date':

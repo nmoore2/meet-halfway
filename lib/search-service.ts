@@ -1,4 +1,4 @@
-import { SearchStrategy, Venue, VibePreferences } from '@/types';
+import { SearchStrategy, Venue, VibePreferences, LatLng, SearchParams } from '../types';
 import { searchNearbyVenues } from './google-places';
 import { calculateDistance } from './maps-utils';
 
@@ -29,8 +29,8 @@ export class SearchService {
     }
 
     private calculateDistanceScore(venue: Venue, locationA: LatLng, locationB: LatLng): number {
-        const distanceToA = calculateDistance(venue.location, locationA);
-        const distanceToB = calculateDistance(venue.location, locationB);
+        const distanceToA = calculateDistance(venue.geometry.location, locationA);
+        const distanceToB = calculateDistance(venue.geometry.location, locationB);
         const totalDistance = calculateDistance(locationA, locationB);
 
         // Perfect score when distances are equal
@@ -42,8 +42,8 @@ export class SearchService {
         const DISTRICT_RADIUS = 500; // 500m radius for district analysis
 
         const nearbyVenues = allVenues.filter(v =>
-            v.id !== venue.id &&
-            calculateDistance(venue.location, v.location) <= DISTRICT_RADIUS
+            v.place_id !== venue.place_id &&
+            calculateDistance(venue.geometry.location, v.geometry.location) <= DISTRICT_RADIUS
         );
 
         if (nearbyVenues.length === 0) return 0;
@@ -54,16 +54,45 @@ export class SearchService {
         return (density * 0.7) + (averageRating / 5 * 0.3);
     }
 
+    private calculateVibeScore(venue: Venue, preferences: VibePreferences): number {
+        // Implement vibe matching logic based on venue attributes and user preferences
+        // This is a placeholder - we'll implement the actual logic next
+        return 0.5;
+    }
+
+    private calculateFinalScore(
+        distanceScore: number,
+        districtScore: number,
+        vibeScore: number,
+        baseQuality: number,
+        strategyType: SearchStrategy['type'],
+        preferences: VibePreferences
+    ): number {
+        switch (strategyType) {
+            case 'EQUAL_DISTANCE':
+                return (distanceScore * 0.5) + (vibeScore * 0.3) + (baseQuality * 0.2);
+            case 'ENTERTAINMENT_DISTRICT':
+                return (districtScore * 0.5) + (vibeScore * 0.3) + (baseQuality * 0.2);
+            case 'BALANCED':
+                return (distanceScore * 0.3) + (districtScore * 0.3) + (vibeScore * 0.2) + (baseQuality * 0.2);
+            default:
+                return baseQuality;
+        }
+    }
+
     async findVenues(params: SearchParams, preferences: VibePreferences): Promise<Venue[]> {
         const strategy = this.determineStrategy(preferences.locationPriority);
 
-        // Initial venue search
-        const venues = await searchNearbyVenues({
+        // Initial venue search with complete params
+        const searchParams: SearchParams = {
             ...params,
-            radius: strategy.searchRadius,
+            maxResults: 30,
             minRating: strategy.minRating,
-            minReviews: strategy.minReviews
-        });
+            minReviews: strategy.minReviews,
+            radius: strategy.searchRadius
+        };
+
+        const venues = await searchNearbyVenues(searchParams);
 
         // Score and rank venues
         const scoredVenues = await Promise.all(venues.map(async venue => {

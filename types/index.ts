@@ -9,11 +9,48 @@ export interface VibePreferences {
     locationPriority: number;
 }
 
-// Add any other shared types here that might be used across components
-export interface Venue {
-    // ... existing venue type if you have one
+export interface SearchStrategy {
+    type: 'EQUAL_DISTANCE' | 'ENTERTAINMENT_DISTRICT' | 'BALANCED';
+    searchRadius: number;
+    minRating: number;
+    minReviews: number;
 }
 
-export interface Cluster {
-    // ... existing cluster type if you have one
+export interface Venue {
+    id?: string;
+    place_id: string;
+    name: string;
+    vicinity: string;
+    rating: number;
+    user_ratings_total: number;
+    price_level?: number;
+    photos?: string[];
+    geometry: {
+        location: LatLng;
+    };
+    scores?: {
+        distanceBalance: number;
+        districtVibrancy: number;
+        vibeMatch: number;
+        baseQuality: number;
+        final: number;
+    };
+    driveTimes?: {
+        fromLocationA: number;
+        fromLocationB: number;
+    };
+}
+
+export interface SearchParams {
+    locationA: LatLng;
+    locationB: LatLng;
+    midpoint: LatLng;
+    radius: number;
+    minRating: number;
+    minReviews: number;
+    activityType: string;
+    priceRange: string;
+    location1: string;
+    location2: string;
+    maxResults?: number;
 }
